@@ -1,0 +1,129 @@
+{
+  "theme": "dark",
+  "archetype": "7 (Electric & Neon)",
+  "core_philosophy": "A high-end, premium SaaS dashboard styled like a 'Control Room' for AI website analysis. Black-on-black layers, neon accents strictly used to indicate action or data, and an immersive, technical yet luxurious feel. Emphasizes modern micro-interactions, glowing borders, and progressive disclosure.",
+  "language": "es",
+  "features": [
+    "URL Input & Analysis",
+    "AI-Powered Website Analysis",
+    "Visual Score 0-100",
+    "Money Lost Estimator",
+    "Error Detection Dashboard",
+    "Opportunity Cards",
+    "Email Capture Popup",
+    "Premium Report Unlock (Stripe)",
+    "Google Auth Login",
+    "Language Toggle (ES/EN)",
+    "Floating CTA Button"
+  ],
+  "typography": {
+    "font_families": {
+      "headings": "Cabinet Grotesk, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter leading-none text-white",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight text-white",
+      "h4": "text-lg sm:text-xl font-medium text-white",
+      "body": "text-base leading-relaxed text-zinc-400",
+      "small": "text-sm text-zinc-500",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-primary"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#05050A",
+      "surface": "#0A0A12",
+      "card": "#0F0F1A",
+      "overlay": "rgba(5, 5, 10, 0.8)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "brand": {
+      "primary": "#00E5FF",
+      "purple": "#9D4CDD",
+      "neon_green": "#39FF14",
+      "deep_violet": "#7B2CBF"
+    },
+    "status": {
+      "success": "#39FF14",
+      "warning": "#FFCC00",
+      "error": "#FF3B30"
+    },
+    "gradients": {
+      "analyze_button": "bg-gradient-to-r from-[#00E5FF] to-[#9D4CDD]",
+      "glow_border": "bg-gradient-to-r from-transparent via-[#00E5FF] to-transparent"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "p-1, p-2, p-4, p-6, p-8, p-12, p-16, p-24",
+    "grid_patterns": {
+      "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+      "marketing": "grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8"
+    },
+    "radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-full",
+      "input": "rounded-xl"
+    }
+  },
+  "surfaces_and_micro_themes": {
+    "header": "backdrop-blur-xl bg-[#0A0A12]/60 border-b border-white/10 z-50",
+    "cards": "bg-[#0F0F1A] border border-white/5 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-300 hover:-translate-y-1 hover:border-[#00E5FF]/30 hover:shadow-[0_0_20px_rgba(0,229,255,0.15)]",
+    "glow_effects": "drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]"
+  },
+  "motion_and_interactions": {
+    "buttons": {
+      "analyze_cta": "animate-pulse hover:scale-105 transition-transform duration-300 ease-out shadow-[0_0_15px_rgba(0,229,255,0.6)]",
+      "generic": "hover:scale-[1.02] active:scale-95 transition-all duration-200"
+    },
+    "progressive_loading": "opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-700 stagger-100",
+    "counters": "Use react-countup or framer-motion for the 'Money Lost' block to smoothly roll numbers from 0 to target value."
+  },
+  "components_instructions": {
+    "hero_section": "Use a deep void background with the 'Abstract neon lines' image at 30% opacity. Center the H1. Below H1, place a glowing massive URL input field with the 'Analizar Web' (Analyze web) CTA. The CTA must use the analyze_button gradient and a drop-shadow glow.",
+    "dashboard_results": "Render inside a 'Control Room' bento grid. Make sure the cards use 'bg-[#0F0F1A] border-white/5'. Hovering on a card should give it a slight neon glow border. The 'Money Lost' block should be visually distinct (col-span-2) with a massive red/neon text counter.",
+    "visual_score": "Render as a circular SVG progress bar or large bold number. Score < 50: #FF3B30. Score 50-79: #FFCC00. Score 80+: #39FF14. Add inner drop shadow to give it a techy neon feel.",
+    "floating_cta": "Fixed positioned button at bottom-right 'Probar ahora' (Try now). Use glassmorphism background with neon green text and border.",
+    "email_popup": "Shadcn Dialog component. Heavy glassmorphism (backdrop-blur-2xl bg-black/80). Electric blue accents.",
+    "language_toggle": "A simple toggle in the header (ES / EN). The primary UI must be in Spanish (es).",
+    "inputs": "Shadcn Input, customized to bg-[#0A0A12] with text-white and border-white/20. Focus state: border-[#00E5FF] ring-1 ring-[#00E5FF].",
+    "icons": "Use @phosphor-icons/react (Duotone weight) or lucide-react. Must be sized appropriately and colored using brand colors."
+  },
+  "media_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1762279389042-9439bfb6c155?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxkYXJrJTIwYWJzdHJhY3QlMjB0ZWNobm9sb2d5JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzU5NDk1NTB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract neon lines forming a digital landscape. Use as background for the hero section with low opacity (10-20%)"
+    },
+    "dashboard_texture": {
+      "url": "https://images.unsplash.com/photo-1754738381790-8caa4bb0a670?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwYWJzdHJhY3QlMjB0ZWNobm9sb2d5JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzU5NDk1NTB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract fluid sculpture with purple and blue lighting. Can be used in premium unlock banner or result cards as a subtle background."
+    },
+    "logos": [
+      {
+        "url": "https://images.unsplash.com/photo-1660792734675-63a875d406b3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwzfHxjb21wYW55JTIwbG9nbyUyMHdoaXRlJTIwcG5nfGVufDB8fHx8MTc3NTk0OTU1MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Company logo placeholder 1 (White)"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1659893982147-e9ddb94de39a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwyfHxjb21wYW55JTIwbG9nbyUyMHdoaXRlJTIwcG5nfGVufDB8fHx8MTc3NTk0OTU1MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Company logo placeholder 2 (White)"
+      }
+    ]
+  },
+  "data_testid_rules": "All interactive elements, forms, and results MUST include data-testid. Examples: data-testid='url-input', data-testid='analyze-btn', data-testid='money-lost-counter', data-testid='visual-score'.",
+  "instructions_to_main_agent": [
+    "Install and use 'framer-motion' for all fade-in, progressive loading, and scale hover animations.",
+    "Install and use 'react-countup' or framer-motion equivalent for the 'Money Lost' animated counter.",
+    "Do NOT use 'Inter', use 'Cabinet Grotesk' for Headings and 'Manrope' for body text. Use generic sans-serif fallbacks if these fonts fail to load.",
+    "The UI text MUST be entirely in Spanish ('Analizar Web', 'Oportunidades', 'Dinero Perdido', 'Desbloquear Reporte Premium').",
+    "Ensure 'Money Lost' card is intensely visual—use red text (#FF3B30) glowing softly, to indicate urgency.",
+    "Stripe payments and Google Auth UI sections should look natively integrated with the Dark Neon theme, overriding default bright buttons where possible.",
+    "Ensure high contrast: white or very light gray text on the deep dark backgrounds.",
+    "Use standard tailwind gradients and custom utility classes from index.css for glow effects."
+  ]
+}

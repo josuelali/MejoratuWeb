@@ -23,7 +23,7 @@ Mejora Tu WEB es responsable del tratamiento de los datos personales recogidos a
 
 4. BASE LEGAL
 - Consentimiento del usuario
-- Ejecucion de contrato (cuando contratas servicios premium)
+- Ejecucion de contrato (cuando contratas una auditoría web)
 - Interes legitimo (mejora del servicio)
 
 5. DESTINATARIOS
@@ -50,8 +50,8 @@ Al usar Mejora Tu WEB, aceptas estos terminos y condiciones en su totalidad.
 2. DESCRIPCION DEL SERVICIO
 Mejora Tu WEB ofrece:
 - Escaneo rapido gratuito de sitios web
-- Analisis completo con IA (servicio premium, 5 euros)
-- Informes detallados con recomendaciones
+- Auditorías web pagadas: Express, Pro y Marca blanca Agencia
+- Informes claros con errores prioritarios y recomendaciones accionables
 
 3. USO DEL SERVICIO
 - Solo puedes analizar sitios web de los que seas propietario o tengas autorizacion
@@ -60,11 +60,11 @@ Mejora Tu WEB ofrece:
 
 4. PAGOS Y REEMBOLSOS
 - Los pagos se procesan de forma segura a traves de Stripe
-- El precio del informe premium es de 5 euros (IVA incluido)
+- Los precios vigentes son Auditoría Express 49 €, Auditoría Pro 149 € y Marca blanca Agencia 499 €
 - Ofrecemos garantia de satisfaccion de 7 dias
 
 5. PROPIEDAD INTELECTUAL
-- Los informes generados son para tu uso personal o profesional
+- Los informes de auditoría son para tu uso personal o profesional
 - La tecnologia, diseño y marca de Mejora Tu WEB son propiedad exclusiva nuestra
 
 6. LIMITACION DE RESPONSABILIDAD

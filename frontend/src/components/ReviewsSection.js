@@ -11,7 +11,7 @@ const reviews = [
   {
     name: "Carlos Rodriguez",
     role: "Consultor de marketing digital",
-    text: "Uso esta herramienta con todos mis clientes. El analisis es muy preciso y las recomendaciones son accionables. Por solo 6,99 euros es una ganga.",
+    text: "Uso esta herramienta con todos mis clientes. El analisis es muy preciso y las recomendaciones son accionables. Por solo 49 euros es una ganga.",
     rating: 5,
   },
   {
@@ -23,7 +23,7 @@ const reviews = [
   {
     name: "Antonio Lopez",
     role: "Dueno de PYME",
-    text: "No tenia idea de cuanto dinero estaba perdiendo por errores en mi web. Inverti 6,99 euros en el informe y recupere la inversion en 2 dias.",
+    text: "No tenia idea de cuanto dinero estaba perdiendo por errores en mi web. Inverti 49 euros en el informe y recupere la inversion en 2 dias.",
     rating: 5,
   },
 ];

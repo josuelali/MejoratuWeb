@@ -34,7 +34,10 @@ export function AuthProvider({ children }) {
   const login = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + "/";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    const authUrl = process.env.REACT_APP_AUTH_URL;
+    if (authUrl) {
+      window.location.href = `${authUrl}?redirect=${encodeURIComponent(redirectUrl)}`;
+    }
   };
 
   const logout = async () => {

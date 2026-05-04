@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Check, X, Shield, Clock, Globe, Loader2, Rocket, Lock, AlertTriangle, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/cNi6oHgjJ3sF2nxaOjabK02";
+const STRIPE_LINK = "https://buy.stripe.com/4gM4gz9Vl0gt5zJcWrabK0b";
 
 export default function QuickScanCard({ data, aiData, aiLoading }) {
   const { t } = useLanguage();
@@ -162,7 +162,7 @@ export default function QuickScanCard({ data, aiData, aiLoading }) {
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-lg hover:scale-105 active:scale-95 transition-all duration-200 shadow-[0_0_30px_rgba(157,76,221,0.4)] hover:shadow-[0_0_40px_rgba(157,76,221,0.6)] animate-pulse-glow"
             data-testid="unlock-btn"
           >
-            Desbloquear informe completo por 6,99€
+            Pedir auditoría Express — 49 €
             <ArrowRight className="w-5 h-5" />
           </a>
         </motion.div>

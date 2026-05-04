@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Zap, Lock, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/cNi6oHgjJ3sF2nxaOjabK02";
+const STRIPE_LINK = "https://buy.stripe.com/4gM4gz9Vl0gt5zJcWrabK0b";
 
 export default function FloatingCTA() {
   const { t } = useLanguage();
@@ -14,12 +14,8 @@ export default function FloatingCTA() {
     }, 500);
   };
 
-  // Show unlock button if results are visible, otherwise show "try now"
-  const hasResults = document.querySelector('[data-testid="quick-scan-results"]');
-
   return (
     <>
-      {/* Floating unlock bar at bottom */}
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
@@ -44,7 +40,7 @@ export default function FloatingCTA() {
             data-testid="floating-unlock-btn"
           >
             <Lock className="w-4 h-4" />
-            Desbloquear informe
+            Auditoría Express
             <ArrowRight className="w-4 h-4" />
           </a>
         </div>

@@ -1,18 +1,4 @@
-/* FixMySite AI - Custom Styles & Animations */
-
-/* Hide external watermarks */
-[data-testid*="emergent"],
-a[href*="emergent.sh"],
-div:has(> a[href*="emergent.sh"]) {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  position: absolute !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-}
+/* MejoraTuWeb.org - Custom Styles & Animations */
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }

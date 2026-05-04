@@ -2,27 +2,27 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Volume2, VolumeX } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/cNi6oHgjJ3sF2nxaOjabK02";
+const STRIPE_LINK = "https://buy.stripe.com/4gM4gz9Vl0gt5zJcWrabK0b";
 
 const qaData = [
   {
     q: "Que incluye el informe?",
-    a: "El informe completo incluye: lista de todos los errores detectados, soluciones paso a paso, optimizacion SEO avanzada, recomendaciones de conversion y plan de accion personalizado.",
+    a: "La Auditoría Express incluye revisión manual, informe PDF con errores prioritarios, 3 acciones urgentes y entrega en 24 horas.",
   },
   {
     q: "Cuanto cuesta?",
-    a: "El informe completo tiene un precio especial de solo 6,99 euros. Es una inversion minima para descubrir todos los problemas que estan haciendo perder dinero a tu web.",
+    a: "La Auditoría Express cuesta 49 euros e incluye un informe claro para priorizar cambios que pueden estar costándote clientes.",
   },
   {
     q: "Como mejoro mi web?",
-    a: "Primero, analiza tu web con nuestra herramienta gratuita. Luego, desbloquea el informe completo por solo 5 euros para obtener las soluciones paso a paso.",
+    a: "Primero, analiza tu web gratis. Después, pide la Auditoría Express de 49 euros si quieres una revisión manual con prioridades concretas.",
   },
   {
     q: "Es seguro pagar?",
     a: "Si, todos los pagos se procesan de forma segura a traves de Stripe, la plataforma de pagos lider mundial. Tus datos estan protegidos con encriptacion SSL.",
   },
   {
-    q: "Quiero desbloquear el informe",
+    q: "Quiero pedir la auditoría",
     a: "Excelente decision! Te redirijo al pago seguro...",
   },
 ];
@@ -30,7 +30,7 @@ const qaData = [
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { type: "bot", text: "Hola! Soy el asistente de Mejora Tu WEB. En que puedo ayudarte?" },
+    { type: "bot", text: "Hola! Soy el asistente de MejoraTuWeb.org. En que puedo ayudarte?" },
   ]);
   const [speaking, setSpeaking] = useState(false);
   const chatRef = useRef(null);
@@ -57,7 +57,7 @@ export default function ChatWidget() {
   const handleQuestion = (qa) => {
     setMessages((prev) => [...prev, { type: "user", text: qa.q }, { type: "bot", text: qa.a }]);
     speak(qa.a);
-    if (qa.q.includes("desbloquear")) {
+    if (qa.q.includes("pedir la auditoría")) {
       setTimeout(() => window.open(STRIPE_LINK, "_blank"), 2000);
     }
     setTimeout(() => {

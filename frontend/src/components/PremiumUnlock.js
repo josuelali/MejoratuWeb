@@ -1,7 +1,7 @@
 import { useLanguage } from "../contexts/LanguageContext";
 import { Crown, Check, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/cNi6oHgjJ3sF2nxaOjabK02";
+const STRIPE_LINK = "https://buy.stripe.com/4gM4gz9Vl0gt5zJcWrabK0b";
 
 export default function PremiumUnlock() {
   const { t } = useLanguage();
@@ -46,7 +46,7 @@ export default function PremiumUnlock() {
           data-testid="premium-btn"
         >
           <Crown className="w-5 h-5" />
-          Desbloquear informe completo por 6,99€
+          Pedir auditoría Express — 49 €
           <ArrowRight className="w-5 h-5" />
         </a>
       </div>

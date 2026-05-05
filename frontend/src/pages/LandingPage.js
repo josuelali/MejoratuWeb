@@ -15,7 +15,7 @@ import { Search, ArrowRight, Loader2, Shield, Gauge, Eye, Rocket } from "lucide-
 import axios from "axios";
 
 // 🔴 BACKEND FIJO (CORREGIDO)
-const API = "https://mejoratuweb.onrender.com";
+const API = "https://mejoratuweb.onrender.com/api";
 
 export default function LandingPage() {
   const { t } = useLanguage();
@@ -38,27 +38,30 @@ export default function LandingPage() {
     setError("");
     setQuickScan(null);
     setAnalysis(null);
-    setAiLoading(false);
+    setAiLoading(true);
 
     try {
-      // 🔴 LLAMADA DIRECTA AL ENDPOINT REAL
-      const res = await axios.post(`${API}/analyze`, {
-        url: url.trim(),
+      const normalizedUrl = url.trim();
+
+      const quickRes = await axios.post(`${API}/quick-scan`, {
+        url: normalizedUrl,
       });
+      setQuickScan(quickRes.data);
 
-      console.log("RESULTADO:", res.data);
-
-      setQuickScan(res.data); // reutilizamos para mostrar algo
+      const analysisRes = await axios.post(`${API}/analyze`, {
+        url: normalizedUrl,
+      });
+      setAnalysis(analysisRes.data);
 
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 300);
-
     } catch (e) {
       console.error("ERROR:", e);
       setError("Error al analizar la web. Inténtalo de nuevo.");
     } finally {
       setQuickLoading(false);
+      setAiLoading(false);
     }
   };
 
@@ -104,7 +107,7 @@ export default function LandingPage() {
                 disabled={quickLoading}
                 className="px-6 py-3 rounded-lg bg-gradient-to-r from-[#00E5FF] to-[#9D4CDD] text-black font-bold"
               >
-                {quickLoading ? "Analizando..." : "Analizar Web"}
+                {quickLoading ? "Analizando web... puede tardar unos segundos" : "Analizar Web"}
               </button>
 
             </div>

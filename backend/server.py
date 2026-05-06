@@ -717,7 +717,7 @@ async def email_subscribe(req: EmailSubscribeRequest):
 @api_router.post("/payments/create-checkout")
 async def create_checkout(req: CreateCheckoutRequest):
     return {
-        "url": "https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00",
+        "url": "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00",
         "message": "Redirección a Auditoría Express"
     }
 
@@ -737,4 +737,5 @@ app.include_router(api_router)
 async def shutdown_db_client():
     if client:
         client.close()
+
 

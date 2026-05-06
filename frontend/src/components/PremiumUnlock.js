@@ -1,7 +1,7 @@
 import { useLanguage } from "../contexts/LanguageContext";
 import { Crown, Check, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00";
+const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
 
 export default function PremiumUnlock() {
   const { t } = useLanguage();
@@ -53,4 +53,5 @@ export default function PremiumUnlock() {
     </div>
   );
 }
+
 

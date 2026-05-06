@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Volume2, VolumeX } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00";
+const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
 
 const qaData = [
   {
@@ -137,4 +137,5 @@ export default function ChatWidget() {
     </>
   );
 }
+
 

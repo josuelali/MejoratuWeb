@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Zap, Lock, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00";
+const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
 
 export default function FloatingCTA() {
   const { t } = useLanguage();
@@ -52,4 +52,5 @@ export default function FloatingCTA() {
     </>
   );
 }
+
 

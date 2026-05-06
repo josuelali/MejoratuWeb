@@ -131,7 +131,7 @@ export default function LandingPage() {
 
             {/* 🔴 CTA DINERO */}
             <a
-              href="https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00"
+              href="https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00"
               className="inline-block px-6 py-3 bg-[#00E5FF] text-black font-bold rounded-lg"
             >
               Desbloquear informe completo
@@ -150,4 +150,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
 

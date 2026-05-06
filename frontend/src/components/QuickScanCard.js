@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Check, X, Shield, Clock, Globe, Loader2, Rocket, Lock, AlertTriangle, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhe1IeUN8Tq63K00";
+const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
 
 export default function QuickScanCard({ data, aiData, aiLoading }) {
   const { t } = useLanguage();
@@ -170,4 +170,5 @@ export default function QuickScanCard({ data, aiData, aiLoading }) {
     </motion.section>
   );
 }
+
 

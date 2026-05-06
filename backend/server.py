@@ -12,6 +12,7 @@ import uuid
 import httpx
 import json
 import re
+import time
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -112,12 +113,16 @@ def normalize_url(raw_url: str) -> str:
 
 
 async def fetch_html(url: str, timeout: int = 12):
+    started_at = time.perf_counter()
+
     async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as http:
         resp = await http.get(
             url,
             headers={"User-Agent": "Mozilla/5.0 MejoraTuWebBot/1.0"}
         )
-        return resp
+
+    response_time = time.perf_counter() - started_at
+    return resp, response_time
 
 
 async def save_document(collection: str, data: dict):
@@ -136,10 +141,9 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
     url = normalize_url(req.url)
 
     try:
-        resp = await fetch_html(url, timeout=12)
-        html = resp.text
-        headers_dict = {k.lower(): v for k, v in resp.headers.items()}
-        response_time = resp.elapsed.total_seconds()
+       resp, response_time = await fetch_html(url, timeout=12)
+html = resp.text
+headers_dict = {k.lower(): v for k, v in resp.headers.items()}
     except Exception as e:
         raise HTTPException(
             status_code=400,
@@ -497,8 +501,8 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
 
     # OpenAI directo por HTTP, sin librería externa.
     try:
-        fetched = await fetch_html(url, timeout=15)
-        html = fetched.text[:12000]
+        fetched, _response_time = await fetch_html(url, timeout=15)
+html = fetched.text[:12000]
     except Exception as e:
         raise HTTPException(
             status_code=400,

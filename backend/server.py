@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="MejoraTuWeb API")
 api_router = APIRouter(prefix="/api")
 
+
 # --- CORS ---
 allowed_origins = [
     "https://mejoratuweb.org",
@@ -53,6 +54,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
 
 # --- Mongo opcional ---
 db = None
@@ -107,8 +109,16 @@ async def health():
 
 def normalize_url(raw_url: str) -> str:
     url = raw_url.strip()
+
+    if not url:
+        raise HTTPException(
+            status_code=400,
+            detail="La URL no puede estar vacía"
+        )
+
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
+
     return url
 
 
@@ -118,7 +128,12 @@ async def fetch_html(url: str, timeout: int = 12):
     async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as http:
         resp = await http.get(
             url,
-            headers={"User-Agent": "Mozilla/5.0 MejoraTuWebBot/1.0"}
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; "
+                    "+https://mejoratuweb.org)"
+                )
+            }
         )
 
     response_time = time.perf_counter() - started_at
@@ -128,10 +143,12 @@ async def fetch_html(url: str, timeout: int = 12):
 async def save_document(collection: str, data: dict):
     if db is None:
         return None
+
     try:
         await db[collection].insert_one(data)
     except Exception as e:
         logger.warning(f"No se pudo guardar en MongoDB/{collection}: {e}")
+
     return None
 
 
@@ -141,10 +158,11 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
     url = normalize_url(req.url)
 
     try:
-       resp, response_time = await fetch_html(url, timeout=12)
-html = resp.text
-headers_dict = {k.lower(): v for k, v in resp.headers.items()}
+        resp, response_time = await fetch_html(url, timeout=12)
+        html = resp.text or ""
+        headers_dict = {k.lower(): v for k, v in resp.headers.items()}
     except Exception as e:
+        logger.exception(f"Error accediendo a la URL {url}")
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo acceder a la URL: {str(e)}"
@@ -158,6 +176,7 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
     # HTTPS
     is_https = url.startswith("https://")
     max_pts += 15
+
     if is_https:
         total += 15
         checks.append({
@@ -174,8 +193,36 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
             "points": 0
         })
 
+    # Response status
+    max_pts += 10
+
+    if 200 <= resp.status_code < 300:
+        total += 10
+        checks.append({
+            "name": "Estado HTTP",
+            "passed": True,
+            "detail": f"La web responde correctamente: HTTP {resp.status_code}",
+            "points": 10
+        })
+    elif 300 <= resp.status_code < 400:
+        total += 6
+        checks.append({
+            "name": "Estado HTTP",
+            "passed": True,
+            "detail": f"La web redirige: HTTP {resp.status_code}",
+            "points": 6
+        })
+    else:
+        checks.append({
+            "name": "Estado HTTP",
+            "passed": False,
+            "detail": f"La web responde con HTTP {resp.status_code}",
+            "points": 0
+        })
+
     # Response time
     max_pts += 10
+
     if response_time < 1:
         total += 10
         checks.append({
@@ -202,15 +249,19 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Meta title
     max_pts += 10
+
     title_match = re.search(
         r"<title[^>]*>(.*?)</title>",
         html,
         re.IGNORECASE | re.DOTALL
     )
+
     if title_match and title_match.group(1).strip():
-        title_len = len(title_match.group(1).strip())
+        title_text = title_match.group(1).strip()
+        title_len = len(title_text)
         pts = 10 if 30 <= title_len <= 60 else 5
         total += pts
+
         checks.append({
             "name": "Meta Title",
             "passed": True,
@@ -227,11 +278,13 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Meta description
     max_pts += 10
+
     desc_match = re.search(
         r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']*)["\']',
         html,
         re.IGNORECASE
     )
+
     if not desc_match:
         desc_match = re.search(
             r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+name=["\']description["\']',
@@ -240,9 +293,11 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
         )
 
     if desc_match and desc_match.group(1).strip():
-        desc_len = len(desc_match.group(1).strip())
+        desc_text = desc_match.group(1).strip()
+        desc_len = len(desc_text)
         pts = 10 if 120 <= desc_len <= 160 else 5
         total += pts
+
         checks.append({
             "name": "Meta Description",
             "passed": True,
@@ -259,7 +314,12 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Viewport
     max_pts += 10
-    has_viewport = 'name="viewport"' in html_lower or "name='viewport'" in html_lower
+
+    has_viewport = (
+        'name="viewport"' in html_lower
+        or "name='viewport'" in html_lower
+    )
+
     if has_viewport:
         total += 10
         checks.append({
@@ -278,7 +338,9 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # H1
     max_pts += 10
+
     h1_count = len(re.findall(r"<h1[^>]*>", html, re.IGNORECASE))
+
     if h1_count == 1:
         total += 10
         checks.append({
@@ -305,6 +367,7 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Images alt
     max_pts += 10
+
     imgs = re.findall(r"<img[^>]*>", html, re.IGNORECASE)
     no_alt = [
         img for img in imgs
@@ -330,6 +393,7 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
     else:
         pts = int(((len(imgs) - len(no_alt)) / len(imgs)) * 10)
         total += pts
+
         checks.append({
             "name": "Alt imágenes",
             "passed": False,
@@ -339,15 +403,18 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Security headers
     max_pts += 10
+
     sec_headers = [
         "content-security-policy",
         "x-frame-options",
         "x-content-type-options",
         "strict-transport-security"
     ]
+
     found_headers = sum(1 for h in sec_headers if h in headers_dict)
     sec_pts = int((found_headers / len(sec_headers)) * 10)
     total += sec_pts
+
     checks.append({
         "name": "Cabeceras de seguridad",
         "passed": found_headers >= 3,
@@ -357,7 +424,12 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Open Graph
     max_pts += 5
-    has_og = 'property="og:' in html_lower or "property='og:" in html_lower
+
+    has_og = (
+        'property="og:' in html_lower
+        or "property='og:" in html_lower
+    )
+
     if has_og:
         total += 5
         checks.append({
@@ -376,7 +448,12 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Lang attribute
     max_pts += 5
-    has_lang = 'lang="' in html_lower[:500] or "lang='" in html_lower[:500]
+
+    has_lang = (
+        'lang="' in html_lower[:500]
+        or "lang='" in html_lower[:500]
+    )
+
     if has_lang:
         total += 5
         checks.append({
@@ -395,7 +472,12 @@ headers_dict = {k.lower(): v for k, v in resp.headers.items()}
 
     # Canonical
     max_pts += 5
-    has_canonical = 'rel="canonical"' in html_lower or "rel='canonical'" in html_lower
+
+    has_canonical = (
+        'rel="canonical"' in html_lower
+        or "rel='canonical'" in html_lower
+    )
+
     if has_canonical:
         total += 5
         checks.append({
@@ -440,6 +522,7 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Error ejecutando quick_scan en analyze_url para {url}")
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo analizar la URL: {str(e)}"
@@ -449,13 +532,17 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
 
     if not openai_key:
         analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
+
         result = {
             "analysis_id": analysis_id,
             "url": url,
             "result": {
                 "score": quick["score"],
                 "money_lost_monthly": max(49, int((100 - quick["score"]) * 7)),
-                "summary": "Análisis rápido completado. Para un informe completo, activa la auditoría premium.",
+                "summary": (
+                    "Análisis rápido completado. Para un informe completo, "
+                    "activa la auditoría premium."
+                ),
                 "errors": [
                     {
                         "title": check["name"],
@@ -468,13 +555,17 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
                 "opportunities": [
                     {
                         "title": "Mejorar conversión",
-                        "description": "Optimizar CTA, estructura de landing y propuesta de valor.",
+                        "description": (
+                            "Optimizar CTA, estructura de landing y propuesta de valor."
+                        ),
                         "impact": "high",
                         "estimated_value": 149
                     },
                     {
                         "title": "Mejorar SEO técnico",
-                        "description": "Corregir metadatos, canonical, H1 y estructura semántica.",
+                        "description": (
+                            "Corregir metadatos, canonical, H1 y estructura semántica."
+                        ),
                         "impact": "medium",
                         "estimated_value": 99
                     }
@@ -502,8 +593,9 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
     # OpenAI directo por HTTP, sin librería externa.
     try:
         fetched, _response_time = await fetch_html(url, timeout=15)
-html = fetched.text[:12000]
+        html = fetched.text[:12000]
     except Exception as e:
+        logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo acceder a la URL: {str(e)}"
@@ -549,7 +641,10 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
                     "messages": [
                         {
                             "role": "system",
-                            "content": "Eres un auditor web experto. Responde solo con JSON válido."
+                            "content": (
+                                "Eres un auditor web experto. "
+                                "Responde solo con JSON válido."
+                            )
                         },
                         {
                             "role": "user",
@@ -579,6 +674,7 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Error procesando respuesta IA")
         raise HTTPException(
             status_code=500,
             detail=f"Error al procesar el análisis IA: {str(e)}"
@@ -608,7 +704,9 @@ async def email_subscribe(req: EmailSubscribeRequest):
         "email": req.email,
         "subscribed_at": datetime.now(timezone.utc).isoformat()
     }
+
     await save_document("email_subscribers", data)
+
     return {"message": "Suscrito correctamente"}
 
 

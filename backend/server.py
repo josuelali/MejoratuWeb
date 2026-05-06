@@ -145,7 +145,10 @@ async def save_document(collection: str, data: dict):
         return None
 
     try:
-        await db[collection].insert_one(data)
+        # Copia limpia para Mongo. Evita que Mongo añada _id al objeto original
+        # que luego FastAPI intenta devolver como JSON.
+        document = json.loads(json.dumps(data, default=str))
+        await db[collection].insert_one(document)
     except Exception as e:
         logger.warning(f"No se pudo guardar en MongoDB/{collection}: {e}")
 

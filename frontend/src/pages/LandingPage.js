@@ -57,8 +57,7 @@ export default function LandingPage() {
       setAnalysis(analysisRes.data);
     } catch (e) {
       console.error("ERROR:", e);
-      const detail = e?.response?.data?.detail;
-      setError(detail || "Error al analizar la web. Inténtalo de nuevo.");
+      setError("No se pudo completar el análisis. Revisa la URL e inténtalo de nuevo.");
     } finally {
       setQuickLoading(false);
       setAiLoading(false);

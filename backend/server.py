@@ -13,7 +13,6 @@ import httpx
 import json
 import re
 import time
-import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -23,11 +22,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-ANALYSIS_CACHE = {}
-ANALYSIS_CACHE_TTL_SECONDS = int(os.environ.get("ANALYSIS_CACHE_TTL_SECONDS", "900"))
-HTML_FETCH_TIMEOUT_SECONDS = float(os.environ.get("HTML_FETCH_TIMEOUT_SECONDS", "6"))
-OPENAI_TIMEOUT_SECONDS = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "8"))
 
 app = FastAPI(title="MejoraTuWeb API")
 api_router = APIRouter(prefix="/api")
@@ -161,32 +155,13 @@ async def save_document(collection: str, data: dict):
     return None
 
 
-def get_cached_analysis(url: str):
-    cached = ANALYSIS_CACHE.get(url)
-    if not cached:
-        return None
-
-    if time.time() - cached["created_at"] > ANALYSIS_CACHE_TTL_SECONDS:
-        ANALYSIS_CACHE.pop(url, None)
-        return None
-
-    return cached["result"]
-
-
-def set_cached_analysis(url: str, result: dict):
-    ANALYSIS_CACHE[url] = {
-        "created_at": time.time(),
-        "result": result
-    }
-
-
 # --- Quick Scan ---
 @api_router.post("/quick-scan")
 async def quick_scan(req: AnalyzeRequest, request: Request):
     url = normalize_url(req.url)
 
     try:
-        resp, response_time = await fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS)
+        resp, response_time = await fetch_html(url, timeout=12)
         html = resp.text or ""
         headers_dict = {k.lower(): v for k, v in resp.headers.items()}
     except Exception as e:
@@ -643,10 +618,6 @@ def build_fallback_analysis(quick: dict) -> dict:
 async def analyze_url(req: AnalyzeRequest, request: Request):
     url = normalize_url(req.url)
 
-    cached = get_cached_analysis(url)
-    if cached:
-        return cached
-
     try:
         quick = await quick_scan(req, request)
     except HTTPException:
@@ -674,12 +645,11 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
             "created_at": datetime.now(timezone.utc).isoformat()
         })
 
-        set_cached_analysis(url, result)
         return result
 
     # OpenAI directo por HTTP, sin librería externa.
     try:
-        fetched, _response_time = await fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS)
+        fetched, _response_time = await fetch_html(url, timeout=15)
         html = fetched.text[:12000]
     except Exception as e:
         logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
@@ -692,7 +662,6 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
             "fallback_reason": "html_fetch_failed",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
-        set_cached_analysis(url, result)
         return result
 
     prompt = f"""
@@ -723,33 +692,30 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
 """
 
     try:
-        async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_SECONDS) as http:
-            ai_resp = await asyncio.wait_for(
-                http.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {openai_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": (
-                                    "Eres un auditor web experto. "
-                                    "Responde solo con JSON válido."
-                                )
-                            },
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        ],
-                        "temperature": 0.3
-                    }
-                ),
-                timeout=OPENAI_TIMEOUT_SECONDS + 1
+        async with httpx.AsyncClient(timeout=40) as http:
+            ai_resp = await http.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {openai_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Eres un auditor web experto. "
+                                "Responde solo con JSON válido."
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    "temperature": 0.3
+                }
             )
 
         if ai_resp.status_code >= 400:
@@ -763,7 +729,6 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
                 "fallback_reason": "openai_error",
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
-            set_cached_analysis(url, result)
             return result
 
         response_text = ai_resp.json()["choices"][0]["message"]["content"]
@@ -787,7 +752,6 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
             "fallback_reason": "ai_processing_failed",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
-        set_cached_analysis(url, result)
         return result
 
     analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
@@ -803,8 +767,6 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
         "is_premium": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-
-    set_cached_analysis(url, result)
 
     return result
 
@@ -846,3 +808,4 @@ app.include_router(api_router)
 async def shutdown_db_client():
     if client:
         client.close()
+

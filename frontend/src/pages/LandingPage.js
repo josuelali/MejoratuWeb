@@ -15,6 +15,7 @@ import axios from "axios";
 const RAW_BACKEND =
   process.env.REACT_APP_BACKEND_URL || "https://mejoratuweb.onrender.com";
 const API = `${RAW_BACKEND.replace(/\/+$/, "")}/api`;
+const REQUEST_TIMEOUT_MS = 25000;
 
 export default function LandingPage() {
   const { t } = useLanguage();
@@ -34,17 +35,18 @@ export default function LandingPage() {
 
     setQuickLoading(true);
     setError("");
-    setQuickScan(null);
-    setAnalysis(null);
 
     try {
       const normalizedUrl = url.trim();
 
       const quickRes = await axios.post(`${API}/quick-scan`, {
         url: normalizedUrl,
+      }, {
+        timeout: REQUEST_TIMEOUT_MS,
       });
       setQuickScan(quickRes.data);
       setQuickLoading(false);
+      setAnalysis(null);
 
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -53,11 +55,18 @@ export default function LandingPage() {
       setAiLoading(true);
       const analysisRes = await axios.post(`${API}/analyze`, {
         url: normalizedUrl,
+      }, {
+        timeout: REQUEST_TIMEOUT_MS,
       });
       setAnalysis(analysisRes.data);
     } catch (e) {
       console.error("ERROR:", e);
-      setError("No se pudo completar el análisis. Revisa la URL e inténtalo de nuevo.");
+      const isTimeout = e.code === "ECONNABORTED" || String(e.message || "").toLowerCase().includes("timeout");
+      setError(
+        isTimeout
+          ? "El servidor está tardando más de lo normal. Inténtalo de nuevo en unos segundos."
+          : "No se pudo completar el análisis. Revisa la URL e inténtalo de nuevo."
+      );
     } finally {
       setQuickLoading(false);
       setAiLoading(false);

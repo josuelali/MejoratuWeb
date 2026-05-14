@@ -516,6 +516,104 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
 
 
 # --- Full Analyze ---
+def build_fallback_analysis(quick: dict) -> dict:
+    """Construye un análisis heurístico sin exponer errores técnicos al usuario."""
+    score = quick.get("score", 0)
+    checks = quick.get("checks", [])
+    failed_checks = [check for check in checks if not check.get("passed")]
+    visible_checks = (failed_checks or checks)[:6]
+
+    errors = [
+        {
+            "title": check.get("name", "Punto a revisar"),
+            "description": check.get(
+                "detail",
+                "Se ha detectado un punto mejorable en la web."
+            ),
+            "severity": "critical" if not check.get("passed") else "info",
+            "category": "seo"
+        }
+        for check in visible_checks
+    ]
+
+    if len(errors) < 5:
+        errors.extend([
+            {
+                "title": "Claridad de la propuesta",
+                "description": "Revisar que el visitante entienda rápido qué ofreces y qué debe hacer después.",
+                "severity": "warning",
+                "category": "ux"
+            },
+            {
+                "title": "Llamada a la acción",
+                "description": "Añadir o reforzar un CTA visible para convertir visitas en contactos o ventas.",
+                "severity": "warning",
+                "category": "ux"
+            },
+            {
+                "title": "Confianza comercial",
+                "description": "Incluir señales de confianza como reseñas, casos, garantías o datos de contacto claros.",
+                "severity": "warning",
+                "category": "ux"
+            },
+            {
+                "title": "SEO básico",
+                "description": "Revisar títulos, metadescripciones y estructura para mejorar la visibilidad orgánica.",
+                "severity": "warning",
+                "category": "seo"
+            },
+            {
+                "title": "Conversión",
+                "description": "Optimizar la ruta desde visita hasta contacto, presupuesto, compra o reserva.",
+                "severity": "warning",
+                "category": "ux"
+            },
+        ][:5 - len(errors)])
+
+    return {
+        "score": score,
+        "money_lost_monthly": max(49, int((100 - score) * 7)),
+        "summary": "Análisis generado en modo rápido.",
+        "errors": errors,
+        "opportunities": [
+            {
+                "title": "Mejorar conversión",
+                "description": "Optimizar CTA, estructura de landing y propuesta de valor.",
+                "impact": "high",
+                "estimated_value": 149
+            },
+            {
+                "title": "Mejorar SEO técnico",
+                "description": "Corregir metadatos, canonical, H1 y estructura semántica.",
+                "impact": "medium",
+                "estimated_value": 99
+            },
+            {
+                "title": "Aumentar confianza",
+                "description": "Añadir pruebas sociales, contacto visible y argumentos claros de decisión.",
+                "impact": "medium",
+                "estimated_value": 99
+            },
+            {
+                "title": "Captar leads",
+                "description": "Crear una acción simple para que el visitante deje sus datos o pida información.",
+                "impact": "high",
+                "estimated_value": 199
+            }
+        ],
+        "seo_score": score,
+        "performance_score": score,
+        "security_score": score,
+        "ux_score": score,
+        "recommendations": [
+            "Revisar título, metadescripción y H1.",
+            "Añadir CTA principal visible.",
+            "Optimizar velocidad y cabeceras de seguridad.",
+            "Mejorar confianza y ruta de contacto."
+        ]
+    }
+
+
 @api_router.post("/analyze")
 async def analyze_url(req: AnalyzeRequest, request: Request):
     url = normalize_url(req.url)
@@ -535,54 +633,10 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
 
     if not openai_key:
         analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-
         result = {
             "analysis_id": analysis_id,
             "url": url,
-            "result": {
-                "score": quick["score"],
-                "money_lost_monthly": max(49, int((100 - quick["score"]) * 7)),
-                "summary": (
-                    "Análisis rápido completado. Para un informe completo, "
-                    "activa la auditoría premium."
-                ),
-                "errors": [
-                    {
-                        "title": check["name"],
-                        "description": check["detail"],
-                        "severity": "critical" if not check["passed"] else "info",
-                        "category": "seo"
-                    }
-                    for check in quick["checks"][:6]
-                ],
-                "opportunities": [
-                    {
-                        "title": "Mejorar conversión",
-                        "description": (
-                            "Optimizar CTA, estructura de landing y propuesta de valor."
-                        ),
-                        "impact": "high",
-                        "estimated_value": 149
-                    },
-                    {
-                        "title": "Mejorar SEO técnico",
-                        "description": (
-                            "Corregir metadatos, canonical, H1 y estructura semántica."
-                        ),
-                        "impact": "medium",
-                        "estimated_value": 99
-                    }
-                ],
-                "seo_score": quick["score"],
-                "performance_score": quick["score"],
-                "security_score": quick["score"],
-                "ux_score": quick["score"],
-                "recommendations": [
-                    "Revisar título, metadescripción y H1.",
-                    "Añadir CTA principal visible.",
-                    "Optimizar velocidad y cabeceras de seguridad."
-                ]
-            }
+            "result": build_fallback_analysis(quick)
         }
 
         await save_document("analyses", {
@@ -599,10 +653,16 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
         html = fetched.text[:12000]
     except Exception as e:
         logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se pudo acceder a la URL: {str(e)}"
-        )
+        analysis = build_fallback_analysis(quick)
+        analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
+        result = {"analysis_id": analysis_id, "url": url, "result": analysis}
+        await save_document("analyses", {
+            **result,
+            "is_premium": False,
+            "fallback_reason": "html_fetch_failed",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        return result
 
     prompt = f"""
 Analiza esta web y devuelve SOLO JSON válido con esta estructura exacta:
@@ -659,10 +719,17 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
             )
 
         if ai_resp.status_code >= 400:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error OpenAI: {ai_resp.text[:500]}"
-            )
+            logger.warning("OpenAI devolvió error %s; usando fallback heurístico", ai_resp.status_code)
+            analysis = build_fallback_analysis(quick)
+            analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
+            result = {"analysis_id": analysis_id, "url": url, "result": analysis}
+            await save_document("analyses", {
+                **result,
+                "is_premium": False,
+                "fallback_reason": "openai_error",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            return result
 
         response_text = ai_resp.json()["choices"][0]["message"]["content"]
 
@@ -674,14 +741,18 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
         else:
             analysis = json.loads(response_text)
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.exception("Error procesando respuesta IA")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al procesar el análisis IA: {str(e)}"
-        )
+        analysis = build_fallback_analysis(quick)
+        analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
+        result = {"analysis_id": analysis_id, "url": url, "result": analysis}
+        await save_document("analyses", {
+            **result,
+            "is_premium": False,
+            "fallback_reason": "ai_processing_failed",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        return result
 
     analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
 
@@ -717,7 +788,7 @@ async def email_subscribe(req: EmailSubscribeRequest):
 @api_router.post("/payments/create-checkout")
 async def create_checkout(req: CreateCheckoutRequest):
     return {
-        "url": "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00",
+        "url": "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01",
         "message": "Redirección a Auditoría Express"
     }
 
@@ -737,5 +808,4 @@ app.include_router(api_router)
 async def shutdown_db_client():
     if client:
         client.close()
-
 

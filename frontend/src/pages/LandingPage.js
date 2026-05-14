@@ -5,7 +5,6 @@ import Header from "../components/Header";
 import QuickScanCard from "../components/QuickScanCard";
 import AnalysisResults from "../components/AnalysisResults";
 import FloatingCTA from "../components/FloatingCTA";
-import EmailPopup from "../components/EmailPopup";
 import ChatWidget from "../components/ChatWidget";
 import { Input } from "../components/ui/input";
 import { Search, Shield, Gauge, Eye } from "lucide-react";
@@ -57,8 +56,7 @@ export default function LandingPage() {
       setAnalysis(analysisRes.data);
     } catch (e) {
       console.error("ERROR:", e);
-      const detail = e?.response?.data?.detail;
-      setError(detail || "Error al analizar la web. Inténtalo de nuevo.");
+      setError("No se pudo completar el análisis. Revisa la URL e inténtalo de nuevo.");
     } finally {
       setQuickLoading(false);
       setAiLoading(false);
@@ -173,7 +171,6 @@ export default function LandingPage() {
 
       <FloatingCTA />
       <ChatWidget />
-      <EmailPopup />
     </div>
   );
 }

@@ -92,7 +92,7 @@ class TestPayments:
         assert r.status_code == 200, r.text
         data = r.json()
         assert "url" in data
-        assert data["url"] == "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00"
+        assert data["url"] == "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01"
 
 
 # --- Email ---

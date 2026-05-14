@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Volume2, VolumeX } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
+const STRIPE_LINK = "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01";
 
 const qaData = [
   {

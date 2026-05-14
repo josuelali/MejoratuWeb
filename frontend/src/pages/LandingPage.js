@@ -5,7 +5,6 @@ import Header from "../components/Header";
 import QuickScanCard from "../components/QuickScanCard";
 import AnalysisResults from "../components/AnalysisResults";
 import FloatingCTA from "../components/FloatingCTA";
-import EmailPopup from "../components/EmailPopup";
 import ChatWidget from "../components/ChatWidget";
 import { Input } from "../components/ui/input";
 import { Search, Shield, Gauge, Eye } from "lucide-react";
@@ -181,7 +180,6 @@ export default function LandingPage() {
 
       <FloatingCTA />
       <ChatWidget />
-      <EmailPopup />
     </div>
   );
 }

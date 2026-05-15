@@ -9,6 +9,7 @@ import ChatWidget from "../components/ChatWidget";
 import { Input } from "../components/ui/input";
 import { Search, Shield, Gauge, Eye } from "lucide-react";
 import axios from "axios";
+import { getAnalyzedDomain, getPageParams, trackEvent } from "../lib/analytics";
 
 // Backend URL: production = https://mejoratuweb.onrender.com (set en Vercel)
 const RAW_BACKEND =
@@ -37,6 +38,12 @@ export default function LandingPage() {
 
     try {
       const normalizedUrl = url.trim();
+      const analyzedDomain = getAnalyzedDomain(normalizedUrl);
+
+      trackEvent("analyze_started", {
+        ...getPageParams(),
+        analyzed_domain: analyzedDomain,
+      });
 
       const quickRes = await axios.post(`${API}/quick-scan`, {
         url: normalizedUrl,
@@ -58,6 +65,12 @@ export default function LandingPage() {
         timeout: REQUEST_TIMEOUT_MS,
       });
       setAnalysis(analysisRes.data);
+
+      trackEvent("analysis_completed", {
+        ...getPageParams(),
+        analyzed_domain: analyzedDomain,
+        score: analysisRes.data?.result?.score ?? quickRes.data?.score,
+      });
     } catch (e) {
       console.error("ERROR:", e);
       const isTimeout = e.code === "ECONNABORTED" || String(e.message || "").toLowerCase().includes("timeout");

@@ -1,8 +1,10 @@
+import { trackCheckoutClick } from "../lib/analytics";
 import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Zap, Lock, ArrowRight } from "lucide-react";
 
 const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
+
 
 export default function FloatingCTA() {
   const { t } = useLanguage();
@@ -40,6 +42,11 @@ export default function FloatingCTA() {
             href={STRIPE_LINK}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackCheckoutClick({
+              ctaText: "Desbloquear informe",
+              ctaLocation: "floating_bar",
+              destinationUrl: STRIPE_LINK,
+            })}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(157,76,221,0.3)]"
             data-testid="floating-unlock-btn"
           >

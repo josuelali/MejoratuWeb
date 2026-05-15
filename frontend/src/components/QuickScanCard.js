@@ -1,11 +1,27 @@
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
-import { Check, X, Shield, Clock, Globe, Loader2, Rocket, Lock, AlertTriangle, ArrowRight } from "lucide-react";
+import { Check, X, Shield, Clock, Loader2, Lock, AlertTriangle, ArrowRight } from "lucide-react";
+import { getAnalyzedDomain, getPageParams, trackCheckoutClick, trackEvent } from "../lib/analytics";
 
 const STRIPE_LINK = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
 
 export default function QuickScanCard({ data, aiData, aiLoading }) {
   const { t } = useLanguage();
+  const paywallTrackedRef = useRef(false);
+  const analyzedDomain = getAnalyzedDomain(data.url);
+
+  useEffect(() => {
+    if (paywallTrackedRef.current) return;
+    paywallTrackedRef.current = true;
+
+    trackEvent("paywall_view", {
+      ...getPageParams(),
+      analyzed_domain: analyzedDomain,
+      price: 6.99,
+      currency: "EUR",
+    });
+  }, [analyzedDomain]);
 
   const getScoreColor = (s) => {
     if (s >= 80) return "#39FF14";
@@ -159,6 +175,12 @@ export default function QuickScanCard({ data, aiData, aiLoading }) {
             href={STRIPE_LINK}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackCheckoutClick({
+              ctaText: "Desbloquear informe completo por 6,99€",
+              ctaLocation: "premium_cta_block",
+              destinationUrl: STRIPE_LINK,
+              analyzedDomain,
+            })}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-lg hover:scale-105 active:scale-95 transition-all duration-200 shadow-[0_0_30px_rgba(157,76,221,0.4)] hover:shadow-[0_0_40px_rgba(157,76,221,0.6)] animate-pulse-glow"
             data-testid="unlock-btn"
           >

@@ -13,6 +13,7 @@ import httpx
 import json
 import re
 import time
+import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -22,6 +23,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+HTML_FETCH_TIMEOUT_SECONDS = float(os.environ.get("HTML_FETCH_TIMEOUT_SECONDS", "4"))
+OPENAI_TIMEOUT_SECONDS = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "6"))
+QUICK_SCAN_MAX_SECONDS = float(os.environ.get("QUICK_SCAN_MAX_SECONDS", "7.5"))
+DB_WRITE_TIMEOUT_SECONDS = float(os.environ.get("DB_WRITE_TIMEOUT_SECONDS", "1"))
 
 app = FastAPI(title="MejoraTuWeb API")
 api_router = APIRouter(prefix="/api")
@@ -122,20 +128,23 @@ def normalize_url(raw_url: str) -> str:
     return url
 
 
-async def fetch_html(url: str, timeout: int = 12):
+async def fetch_html(url: str, timeout: float = HTML_FETCH_TIMEOUT_SECONDS):
     started_at = time.perf_counter()
+    timeout_config = httpx.Timeout(timeout, connect=min(timeout, 2.0))
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as http:
-        resp = await http.get(
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; "
-                    "+https://mejoratuweb.org)"
-                )
-            }
-        )
+    async def _request():
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as http:
+            return await http.get(
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; "
+                        "+https://mejoratuweb.org)"
+                    )
+                }
+            )
 
+    resp = await asyncio.wait_for(_request(), timeout=timeout + 0.5)
     response_time = time.perf_counter() - started_at
     return resp, response_time
 
@@ -148,7 +157,10 @@ async def save_document(collection: str, data: dict):
         # Copia limpia para Mongo. Evita que Mongo añada _id al objeto original
         # que luego FastAPI intenta devolver como JSON.
         document = json.loads(json.dumps(data, default=str))
-        await db[collection].insert_one(document)
+        await asyncio.wait_for(
+            db[collection].insert_one(document),
+            timeout=DB_WRITE_TIMEOUT_SECONDS
+        )
     except Exception as e:
         logger.warning(f"No se pudo guardar en MongoDB/{collection}: {e}")
 
@@ -156,22 +168,17 @@ async def save_document(collection: str, data: dict):
 
 
 # --- Quick Scan ---
-@api_router.post("/quick-scan")
-async def quick_scan(req: AnalyzeRequest, request: Request):
-    url = normalize_url(req.url)
-
-    try:
-        resp, response_time = await fetch_html(url, timeout=12)
-        html = resp.text or ""
-        headers_dict = {k.lower(): v for k, v in resp.headers.items()}
-    except Exception as e:
-        logger.exception(f"Error accediendo a la URL {url}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se pudo acceder a la URL: {str(e)}"
-        )
-
+def build_quick_scan_result(
+    url: str,
+    resp=None,
+    html: str = "",
+    headers_dict: Optional[dict] = None,
+    response_time: float = 0,
+    fallback_reason: Optional[str] = None
+) -> dict:
+    html = html or ""
     html_lower = html.lower()
+    headers_dict = headers_dict or {}
     checks = []
     total = 0
     max_pts = 0
@@ -198,35 +205,50 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
 
     # Response status
     max_pts += 10
+    status_code = getattr(resp, "status_code", None)
 
-    if 200 <= resp.status_code < 300:
+    if status_code is None:
+        checks.append({
+            "name": "Estado HTTP",
+            "passed": False,
+            "detail": "No se pudo verificar la respuesta HTTP a tiempo",
+            "points": 0
+        })
+    elif 200 <= status_code < 300:
         total += 10
         checks.append({
             "name": "Estado HTTP",
             "passed": True,
-            "detail": f"La web responde correctamente: HTTP {resp.status_code}",
+            "detail": f"La web responde correctamente: HTTP {status_code}",
             "points": 10
         })
-    elif 300 <= resp.status_code < 400:
+    elif 300 <= status_code < 400:
         total += 6
         checks.append({
             "name": "Estado HTTP",
             "passed": True,
-            "detail": f"La web redirige: HTTP {resp.status_code}",
+            "detail": f"La web redirige: HTTP {status_code}",
             "points": 6
         })
     else:
         checks.append({
             "name": "Estado HTTP",
             "passed": False,
-            "detail": f"La web responde con HTTP {resp.status_code}",
+            "detail": f"La web responde con HTTP {status_code}",
             "points": 0
         })
 
     # Response time
     max_pts += 10
 
-    if response_time < 1:
+    if fallback_reason:
+        checks.append({
+            "name": "Velocidad",
+            "passed": False,
+            "detail": "La web tardó demasiado o no respondió; se generó diagnóstico rápido",
+            "points": 0
+        })
+    elif response_time < 1:
         total += 10
         checks.append({
             "name": "Velocidad",
@@ -275,7 +297,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Meta Title",
             "passed": False,
-            "detail": "No se encontró etiqueta title",
+            "detail": "No se encontró etiqueta title" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -311,7 +333,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Meta Description",
             "passed": False,
-            "detail": "Falta meta description",
+            "detail": "Falta meta description" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -335,7 +357,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Viewport",
             "passed": False,
-            "detail": "Falta viewport",
+            "detail": "Falta viewport" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -364,7 +386,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "H1",
             "passed": False,
-            "detail": "Sin etiqueta H1",
+            "detail": "Sin etiqueta H1" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -377,13 +399,20 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         if "alt=" not in img.lower() or 'alt=""' in img.lower()
     ]
 
-    if len(imgs) == 0:
+    if len(imgs) == 0 and html:
         total += 10
         checks.append({
             "name": "Alt imágenes",
             "passed": True,
             "detail": "Sin imágenes que verificar",
             "points": 10
+        })
+    elif len(imgs) == 0:
+        checks.append({
+            "name": "Alt imágenes",
+            "passed": False,
+            "detail": "No verificable en modo fallback",
+            "points": 0
         })
     elif len(no_alt) == 0:
         total += 10
@@ -421,7 +450,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
     checks.append({
         "name": "Cabeceras de seguridad",
         "passed": found_headers >= 3,
-        "detail": f"{found_headers}/{len(sec_headers)} cabeceras encontradas",
+        "detail": f"{found_headers}/{len(sec_headers)} cabeceras encontradas" if headers_dict else "No verificable en modo fallback",
         "points": sec_pts
     })
 
@@ -445,7 +474,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Open Graph",
             "passed": False,
-            "detail": "Sin etiquetas Open Graph",
+            "detail": "Sin etiquetas Open Graph" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -469,7 +498,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Atributo lang",
             "passed": False,
-            "detail": "Falta atributo lang",
+            "detail": "Falta atributo lang" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -493,7 +522,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         checks.append({
             "name": "Canonical",
             "passed": False,
-            "detail": "Sin enlace canonical",
+            "detail": "Sin enlace canonical" if html else "No verificable en modo fallback",
             "points": 0
         })
 
@@ -509,6 +538,39 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
         "is_https": is_https,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+
+    if fallback_reason:
+        result["fallback"] = True
+        result["fallback_reason"] = fallback_reason
+
+    return result
+
+
+@api_router.post("/quick-scan")
+async def quick_scan(req: AnalyzeRequest, request: Request):
+    url = normalize_url(req.url)
+
+    try:
+        resp, response_time = await asyncio.wait_for(
+            fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS),
+            timeout=QUICK_SCAN_MAX_SECONDS
+        )
+        html = resp.text or ""
+        headers_dict = {k.lower(): v for k, v in resp.headers.items()}
+        result = build_quick_scan_result(
+            url=url,
+            resp=resp,
+            html=html,
+            headers_dict=headers_dict,
+            response_time=response_time
+        )
+    except Exception as e:
+        logger.warning(f"Quick scan fallback para {url}: {e}")
+        result = build_quick_scan_result(
+            url=url,
+            response_time=QUICK_SCAN_MAX_SECONDS,
+            fallback_reason="html_fetch_failed_or_timeout"
+        )
 
     await save_document("quick_scans", result)
 
@@ -649,7 +711,7 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
 
     # OpenAI directo por HTTP, sin librería externa.
     try:
-        fetched, _response_time = await fetch_html(url, timeout=15)
+        fetched, _response_time = await fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS)
         html = fetched.text[:12000]
     except Exception as e:
         logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
@@ -692,8 +754,9 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
 """
 
     try:
-        async with httpx.AsyncClient(timeout=40) as http:
-            ai_resp = await http.post(
+        async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_SECONDS) as http:
+            ai_resp = await asyncio.wait_for(
+                http.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {openai_key}",
@@ -716,6 +779,8 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
                     ],
                     "temperature": 0.3
                 }
+            ),
+                timeout=OPENAI_TIMEOUT_SECONDS + 1
             )
 
         if ai_resp.status_code >= 400:

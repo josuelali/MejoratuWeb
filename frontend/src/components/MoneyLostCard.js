@@ -21,9 +21,8 @@ export default function MoneyLostCard({ amount }) {
           textShadow: "0 0 30px rgba(255,59,48,0.3)",
         }}
       >
-        <CountUp end={amount || 0} duration={2} separator="." prefix="-" suffix="\u20AC" />
+        <CountUp end={amount || 0} duration={2} separator="." prefix="-" suffix={` €${t("per_month")}`} />
       </div>
-      <span className="text-sm text-zinc-500 mt-2">{t("per_month")}</span>
     </div>
   );
 }

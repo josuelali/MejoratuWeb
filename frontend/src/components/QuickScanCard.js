@@ -1,27 +1,35 @@
 import { motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
-import { getAnalyzedDomain, getPageParams, trackCheckoutClick, trackEvent } from "../lib/analytics";
+import { getAnalyzedDomain, getPageParams, trackCheckoutClick } from "../lib/analytics";
+import { createCheckout } from "../lib/api";
 import { Check, X, Shield, Clock, Globe, Loader2, Rocket, Lock, AlertTriangle, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01";
-
-export default function QuickScanCard({ data, aiData, aiLoading }) {
+export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
   const { t } = useLanguage();
-  const paywallTrackedRef = useRef(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const analyzedDomain = getAnalyzedDomain(data?.url || "");
 
-  useEffect(() => {
-    if (!data || paywallTrackedRef.current) return;
-    paywallTrackedRef.current = true;
-
-    trackEvent("paywall_view", {
-      ...getPageParams(),
-      analyzed_domain: analyzedDomain,
-      score: data.score,
-      cta_location: "quick_scan_card",
-    });
-  }, [data, analyzedDomain]);
+  const handleCheckout = async () => {
+    if (!analysisId || checkoutLoading) return;
+    setCheckoutLoading(true);
+    setCheckoutError("");
+    try {
+      const checkout = await createCheckout(analysisId);
+      trackCheckoutClick({
+        ctaText: "Desbloquear informe completo por 6,99€",
+        ctaLocation: "quick_scan_card",
+        analyzedDomain,
+        analysisId,
+        ...getPageParams(),
+      });
+      window.location.assign(checkout.url);
+    } catch (error) {
+      setCheckoutError(error.response?.data?.detail || "Checkout Test no disponible");
+      setCheckoutLoading(false);
+    }
+  };
 
   const getScoreColor = (s) => {
     if (s >= 80) return "#39FF14";
@@ -38,8 +46,8 @@ export default function QuickScanCard({ data, aiData, aiLoading }) {
   const hiddenCount = (data.checks?.length || 0) - visibleChecks.length;
 
   // Error count from AI data
-  const criticalErrors = aiData?.result?.errors?.filter((e) => e.severity === "critical")?.length || 0;
-  const totalErrors = aiData?.result?.errors?.length || 0;
+  const criticalErrors = aiData?.result?.critical_error_count || 0;
+  const totalErrors = aiData?.result?.error_count || 0;
   const moneyLost = aiData?.result?.money_lost_monthly || 0;
 
   return (
@@ -171,26 +179,20 @@ export default function QuickScanCard({ data, aiData, aiLoading }) {
             ))}
           </div>
 
-          <a
-            href={STRIPE_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={handleCheckout}
+            disabled={!analysisId || checkoutLoading}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-lg hover:scale-105 active:scale-95 transition-all duration-200 shadow-[0_0_30px_rgba(157,76,221,0.4)] hover:shadow-[0_0_40px_rgba(157,76,221,0.6)] animate-pulse-glow"
-            onClick={() => trackCheckoutClick({
-              ctaText: "Desbloquear informe completo por 6,99€",
-              ctaLocation: "quick_scan_card",
-              destinationUrl: STRIPE_LINK,
-              analyzedDomain,
-            })}
             data-testid="unlock-btn"
           >
-            Desbloquear informe completo por 6,99€
+            {checkoutLoading ? "Preparando pago seguro..." : analysisId ? "Desbloquear informe completo por 6,99€" : "Preparando informe..."}
             <ArrowRight className="w-5 h-5" />
-          </a>
+          </button>
+          {checkoutError && <p className="text-sm text-red-400 mt-3">{checkoutError}</p>}
         </motion.div>
       </div>
     </motion.section>
   );
 }
-
 

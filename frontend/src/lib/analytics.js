@@ -19,6 +19,17 @@ export function trackEvent(eventName, params = {}) {
   }
 }
 
+export function trackEventOnce(eventName, uniqueKey, params = {}) {
+  const storageKey = `mtw_event_${eventName}_${uniqueKey}`;
+  try {
+    if (window.sessionStorage.getItem(storageKey)) return;
+    trackEvent(eventName, params);
+    window.sessionStorage.setItem(storageKey, "1");
+  } catch (_) {
+    trackEvent(eventName, params);
+  }
+}
+
 export function getPageParams() {
   if (typeof window === "undefined") {
     return {};
@@ -42,17 +53,16 @@ export function getAnalyzedDomain(rawUrl = "") {
   }
 }
 
-export function trackCheckoutClick({ ctaText, ctaLocation, destinationUrl, analyzedDomain } = {}) {
+export function trackCheckoutClick({ ctaText, ctaLocation, analyzedDomain, analysisId } = {}) {
   const params = {
     ...getPageParams(),
     cta_text: ctaText,
     cta_location: ctaLocation,
-    destination_url: destinationUrl,
     analyzed_domain: analyzedDomain,
+    analysis_id: analysisId,
     checkout_provider: CHECKOUT_PROVIDER,
     currency: "EUR",
   };
 
-  trackEvent("unlock_report_click", params);
-  trackEvent("begin_checkout", params);
+  trackEventOnce("checkout_started", analysisId || ctaLocation, params);
 }

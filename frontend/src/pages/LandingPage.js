@@ -9,12 +9,8 @@ import ChatWidget from "../components/ChatWidget";
 import { Input } from "../components/ui/input";
 import { Search, Shield, Gauge, Eye } from "lucide-react";
 import axios from "axios";
-import { getAnalyzedDomain, getPageParams, trackEvent } from "../lib/analytics";
-
-// Backend URL: production = https://mejoratuweb.onrender.com (set en Vercel)
-const RAW_BACKEND =
-  process.env.REACT_APP_BACKEND_URL || "https://mejoratuweb.onrender.com";
-const API = `${RAW_BACKEND.replace(/\/+$/, "")}/api`;
+import { getAnalyzedDomain, getPageParams, trackEvent, trackEventOnce } from "../lib/analytics";
+import { API } from "../lib/api";
 
 export default function LandingPage() {
   const { t } = useLanguage();
@@ -62,10 +58,11 @@ export default function LandingPage() {
       });
       setAnalysis(analysisRes.data);
 
-      trackEvent("analysis_completed", {
+      trackEventOnce("free_result_viewed", analysisRes.data.analysis_id, {
         ...getPageParams(),
         analyzed_domain: analyzedDomain,
         score: analysisRes.data?.result?.score ?? quickRes.data?.score,
+        analysis_id: analysisRes.data.analysis_id,
       });
     } catch (e) {
       console.error("ERROR:", e);
@@ -169,6 +166,7 @@ export default function LandingPage() {
             data={quickScan}
             aiData={analysis}
             aiLoading={aiLoading}
+            analysisId={analysis?.analysis_id}
           />
         )}
 

@@ -1,23 +1,32 @@
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
-import { getPageParams, trackCheckoutClick, trackEvent } from "../lib/analytics";
+import { getAnalyzedDomain, trackCheckoutClick } from "../lib/analytics";
+import { createCheckout } from "../lib/api";
 import { Crown, Check, ArrowRight } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01";
-
-export default function PremiumUnlock() {
+export default function PremiumUnlock({ analysisId, url }) {
   const { t } = useLanguage();
-  const paywallTrackedRef = useRef(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (paywallTrackedRef.current) return;
-    paywallTrackedRef.current = true;
-
-    trackEvent("paywall_view", {
-      ...getPageParams(),
-      cta_location: "premium_unlock",
-    });
-  }, []);
+  const handleCheckout = async () => {
+    if (!analysisId || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const checkout = await createCheckout(analysisId);
+      trackCheckoutClick({
+        ctaText: "Desbloquear informe completo por 6,99€",
+        ctaLocation: "premium_unlock",
+        analyzedDomain: getAnalyzedDomain(url),
+        analysisId,
+      });
+      window.location.assign(checkout.url);
+    } catch (checkoutError) {
+      setError(checkoutError.response?.data?.detail || "Checkout Test no disponible");
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -51,25 +60,20 @@ export default function PremiumUnlock() {
           ))}
         </div>
 
-        <a
-          href={STRIPE_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={handleCheckout}
+          disabled={!analysisId || loading}
           className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-base hover:scale-105 active:scale-95 transition-all duration-200 shadow-[0_0_30px_rgba(157,76,221,0.3)] hover:shadow-[0_0_40px_rgba(157,76,221,0.5)]"
-          onClick={() => trackCheckoutClick({
-            ctaText: "Desbloquear informe completo por 6,99€",
-            ctaLocation: "premium_unlock",
-            destinationUrl: STRIPE_LINK,
-          })}
           data-testid="premium-btn"
         >
           <Crown className="w-5 h-5" />
-          Desbloquear informe completo por 6,99€
+          {loading ? "Preparando pago seguro..." : "Desbloquear informe completo por 6,99€"}
           <ArrowRight className="w-5 h-5" />
-        </a>
+        </button>
+        {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
       </div>
     </div>
   );
 }
-
 

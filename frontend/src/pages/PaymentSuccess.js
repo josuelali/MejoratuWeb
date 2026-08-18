@@ -11,13 +11,14 @@ export default function PaymentSuccess() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("processing");
   const [report, setReport] = useState(null);
-  const sessionId = searchParams.get("session_id");
+  const sessionId = searchParams.get("session_id") || window.sessionStorage.getItem("mtw_checkout_session_id");
 
   useEffect(() => {
     if (!sessionId || !sessionId.startsWith("cs_test_")) {
       setStatus("failed");
       return undefined;
     }
+    window.sessionStorage.removeItem("mtw_checkout_session_id");
 
     let active = true;
     let timeoutId;

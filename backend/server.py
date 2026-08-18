@@ -157,11 +157,15 @@ def stripe_test_config_ready() -> bool:
 @api_router.get("/ready")
 async def readiness():
     mongo_ok = await mongo_is_ready()
-    ready = mongo_ok
+    payments_ok = stripe_test_config_ready()
+    ready = mongo_ok and (not PAYMENTS_ENABLED or payments_ok)
+    status = "ready"
+    if not ready:
+        status = "not_ready_for_payments" if mongo_ok and PAYMENTS_ENABLED else "not_ready"
     payload = {
-        "status": "ready" if ready else "not_ready",
+        "status": status,
         "mongodb": "ready" if mongo_ok else "unavailable",
-        "payments": "test_ready" if stripe_test_config_ready() else "disabled",
+        "payments": "test_ready" if payments_ok else ("not_ready" if PAYMENTS_ENABLED else "disabled"),
     }
     if not ready:
         raise HTTPException(status_code=503, detail=payload)
@@ -202,6 +206,14 @@ def normalize_url(raw_url: str) -> str:
     if parsed.username or parsed.password:
         raise HTTPException(status_code=400, detail="La URL no puede contener credenciales")
     return url
+
+
+def safe_url_for_logs(url: str) -> str:
+    """Conserva solo esquema, host y ruta; nunca query, fragmento ni credenciales."""
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return "invalid-url"
+    return f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
 
 
 def is_blocked_ip(value: str) -> bool:
@@ -252,24 +264,36 @@ async def fetch_html(url: str, timeout: float = HTML_FETCH_TIMEOUT_SECONDS):
         "User-Agent": "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; +https://mejoratuweb.org)"
     }
 
+    response = None
     async with httpx.AsyncClient(follow_redirects=False, timeout=timeout_config) as http:
         for redirect_count in range(MAX_REDIRECTS + 1):
             current_url = await validate_public_url(current_url)
-            resp = await asyncio.wait_for(
-                http.get(current_url, headers=headers),
-                timeout=timeout + 0.5,
-            )
-            if len(resp.content) > MAX_HTML_BYTES:
-                raise HTTPException(status_code=400, detail="La respuesta web es demasiado grande")
-            if resp.status_code not in {301, 302, 303, 307, 308}:
+            async with http.stream("GET", current_url, headers=headers) as streamed:
+                if streamed.status_code in {301, 302, 303, 307, 308}:
+                    location = streamed.headers.get("location")
+                    if not location or redirect_count >= MAX_REDIRECTS:
+                        raise HTTPException(status_code=400, detail="Demasiadas redirecciones")
+                    current_url = urljoin(current_url, location)
+                    continue
+
+                content = bytearray()
+                async for chunk in streamed.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > MAX_HTML_BYTES:
+                        raise HTTPException(status_code=400, detail="La respuesta web es demasiado grande")
+                response = httpx.Response(
+                    streamed.status_code,
+                    headers=streamed.headers,
+                    content=bytes(content),
+                    request=streamed.request,
+                )
                 break
-            location = resp.headers.get("location")
-            if not location or redirect_count >= MAX_REDIRECTS:
-                raise HTTPException(status_code=400, detail="Demasiadas redirecciones")
-            current_url = urljoin(current_url, location)
+
+    if response is None:
+        raise HTTPException(status_code=400, detail="No se pudo obtener una respuesta web válida")
 
     response_time = time.perf_counter() - started_at
-    return resp, response_time
+    return response, response_time
 
 
 async def save_document(collection: str, data: dict, required: bool = False):
@@ -695,7 +719,7 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Quick scan fallback para {url}: {e}")
+        logger.warning("Quick scan fallback para %s: %s", safe_url_for_logs(url), e)
         result = build_quick_scan_result(
             url=url,
             response_time=QUICK_SCAN_MAX_SECONDS,
@@ -853,7 +877,7 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error ejecutando quick_scan en analyze_url para {url}")
+        logger.exception("Error ejecutando quick_scan en analyze_url para %s", safe_url_for_logs(url))
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo analizar la URL: {str(e)}"
@@ -869,7 +893,7 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
         fetched, _response_time = await fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS)
         html = fetched.text[:12000]
     except Exception as e:
-        logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
+        logger.exception("Error accediendo a HTML para análisis IA: %s", safe_url_for_logs(url))
         return await persist_analysis(url, build_fallback_analysis(quick), "html_fetch_failed")
 
     prompt = f"""

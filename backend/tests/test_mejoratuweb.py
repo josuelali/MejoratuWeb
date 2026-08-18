@@ -128,6 +128,23 @@ def test_health_and_readiness_are_separate(client):
     assert client.get("/api/ready").status_code == 503
 
 
+def test_readiness_allows_disabled_payments_with_healthy_mongodb(client, monkeypatch):
+    monkeypatch.setattr(server, "PAYMENTS_ENABLED", False)
+    response = client.get("/api/ready")
+    assert response.status_code == 200
+    assert response.json()["payments"] == "disabled"
+
+
+def test_readiness_rejects_incomplete_stripe_when_payments_enabled(client, monkeypatch):
+    monkeypatch.setattr(server, "PAYMENTS_ENABLED", True)
+    monkeypatch.setenv("STRIPE_PRICE_ID", "")
+    response = client.get("/api/ready")
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["status"] == "not_ready_for_payments"
+    assert detail["payments"] == "not_ready"
+
+
 def test_free_response_never_contains_premium(client):
     data = create_analysis(client)
     assert data["is_premium"] is False
@@ -248,6 +265,15 @@ def test_ssrf_private_and_metadata_destinations_are_blocked(url):
     with pytest.raises(server.HTTPException) as error:
         run(ORIGINAL_VALIDATE_PUBLIC_URL(url))
     assert error.value.status_code == 400
+
+
+def test_sensitive_query_parameters_are_removed_from_logs():
+    sanitized = server.safe_url_for_logs(
+        "https://example.com/report?session_id=cs_test_sensitive&token=premium_sensitive#private"
+    )
+    assert sanitized == "https://example.com/report"
+    assert "session_id" not in sanitized
+    assert "token" not in sanitized
 
 
 def test_secrets_are_not_returned(client):

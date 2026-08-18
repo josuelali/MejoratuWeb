@@ -36,7 +36,7 @@ export function getPageParams() {
   }
 
   return {
-    page_location: window.location.href,
+    page_location: `${window.location.origin}${window.location.pathname}`,
     page_path: window.location.pathname,
     page_title: document.title,
   };

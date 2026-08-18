@@ -37,7 +37,7 @@ export default function LandingPage() {
       const normalizedUrl = url.trim();
       const analyzedDomain = getAnalyzedDomain(normalizedUrl);
 
-      trackEvent("analyze_started", {
+      trackEvent("analysis_started", {
         ...getPageParams(),
         analyzed_domain: analyzedDomain,
       });

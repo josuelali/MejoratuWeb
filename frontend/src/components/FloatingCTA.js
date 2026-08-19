@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
-import { Zap, Lock, ArrowRight } from "lucide-react";
+import { Zap } from "lucide-react";
 
 export default function FloatingCTA() {
   const { t } = useLanguage();
@@ -31,19 +31,8 @@ export default function FloatingCTA() {
             {t("float_cta")}
           </button>
 
-          <button
-            type="button"
-            onClick={scrollToInput}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(157,76,221,0.3)]"
-            data-testid="floating-unlock-btn"
-          >
-            <Lock className="w-4 h-4" />
-            Desbloquear informe
-            <ArrowRight className="w-4 h-4" />
-          </button>
         </div>
       </motion.div>
     </>
   );
 }
-

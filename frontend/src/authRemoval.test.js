@@ -29,6 +29,13 @@ describe("public V1 without legacy authentication", () => {
     expect(container.querySelector('[data-testid="language-toggle"]')).not.toBeNull();
   });
 
+  test("keeps the independent try action without the redundant floating unlock action", () => {
+    act(() => root.render(<App />));
+
+    expect(container.querySelector('[data-testid="floating-try-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="floating-unlock-btn"]')).toBeNull();
+  });
+
   test("legacy OAuth fragments stay on the public landing page", () => {
     window.history.replaceState({}, "", "/#session_id=legacy_oauth_value");
 

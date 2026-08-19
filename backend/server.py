@@ -143,11 +143,19 @@ async def mongo_is_ready() -> bool:
     return db_ready
 
 
-def stripe_test_config_ready() -> bool:
+def stripe_mode() -> str:
+    return os.environ.get("STRIPE_MODE", "test").strip().lower()
+
+
+def stripe_config_ready() -> bool:
+    mode = stripe_mode()
+    if mode not in {"test", "live"}:
+        return False
     secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    expected_prefix = "sk_test_" if mode == "test" else "sk_live_"
     return all([
         PAYMENTS_ENABLED,
-        secret_key.startswith("sk_test_"),
+        secret_key.startswith(expected_prefix),
         os.environ.get("STRIPE_WEBHOOK_SECRET", "").startswith("whsec_"),
         os.environ.get("STRIPE_PRICE_ID", "").startswith("price_"),
         len(os.environ.get("REPORT_TOKEN_SECRET", "")) >= 32,
@@ -157,7 +165,7 @@ def stripe_test_config_ready() -> bool:
 @api_router.get("/ready")
 async def readiness():
     mongo_ok = await mongo_is_ready()
-    payments_ok = stripe_test_config_ready()
+    payments_ok = stripe_config_ready()
     ready = mongo_ok and (not PAYMENTS_ENABLED or payments_ok)
     status = "ready"
     if not ready:
@@ -165,7 +173,7 @@ async def readiness():
     payload = {
         "status": status,
         "mongodb": "ready" if mongo_ok else "unavailable",
-        "payments": "test_ready" if payments_ok else ("not_ready" if PAYMENTS_ENABLED else "disabled"),
+        "payments": f"{stripe_mode()}_ready" if payments_ok else ("not_ready" if PAYMENTS_ENABLED else "disabled"),
     }
     if not ready:
         raise HTTPException(status_code=503, detail=payload)
@@ -987,12 +995,12 @@ async def email_subscribe(req: EmailSubscribeRequest):
     return {"message": "Suscrito correctamente"}
 
 
-# --- Payments and premium delivery (Stripe Test Mode only) ---
+# --- Payments and premium delivery (explicit Stripe Test/Live mode) ---
 def require_payment_dependencies() -> None:
     if not PAYMENTS_ENABLED:
         raise HTTPException(status_code=503, detail="Los pagos están desactivados")
-    if not stripe_test_config_ready():
-        raise HTTPException(status_code=503, detail="Stripe Test no está configurado")
+    if not stripe_config_ready():
+        raise HTTPException(status_code=503, detail="Stripe no está configurado para el modo seleccionado")
     if db is None or not db_ready:
         raise HTTPException(status_code=503, detail="Persistencia no disponible")
 
@@ -1093,8 +1101,8 @@ async def create_checkout(req: CreateCheckoutRequest, request: Request):
 
 @api_router.post("/payments/webhook")
 async def stripe_webhook(request: Request):
-    if not stripe_test_config_ready():
-        raise HTTPException(status_code=503, detail="Stripe Test no está configurado")
+    if not stripe_config_ready():
+        raise HTTPException(status_code=503, detail="Stripe no está configurado para el modo seleccionado")
     if not await mongo_is_ready():
         raise HTTPException(status_code=503, detail="Persistencia no disponible")
     payload = await request.body()

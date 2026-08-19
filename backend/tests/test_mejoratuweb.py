@@ -9,6 +9,7 @@ from mongomock_motor import AsyncMongoMockClient
 os.environ.update({
     "MONGO_URL": "",
     "PAYMENTS_ENABLED": "true",
+    "STRIPE_MODE": "test",
     "STRIPE_SECRET_KEY": "sk_test_phase_a",
     "STRIPE_WEBHOOK_SECRET": "whsec_phase_a",
     "STRIPE_PRICE_ID": "price_phase_a_699",
@@ -143,6 +144,50 @@ def test_readiness_rejects_incomplete_stripe_when_payments_enabled(client, monke
     detail = response.json()["detail"]
     assert detail["status"] == "not_ready_for_payments"
     assert detail["payments"] == "not_ready"
+
+
+@pytest.mark.parametrize(("mode", "secret_key", "expected_status"), [
+    ("test", "sk_test_phase_a", "test_ready"),
+    ("live", "sk_live_phase_a", "live_ready"),
+])
+def test_readiness_accepts_matching_stripe_mode_and_key(
+    client,
+    monkeypatch,
+    mode,
+    secret_key,
+    expected_status,
+):
+    monkeypatch.setenv("STRIPE_MODE", mode)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", secret_key)
+    response = client.get("/api/ready")
+    assert response.status_code == 200
+    assert response.json()["payments"] == expected_status
+
+
+@pytest.mark.parametrize(("mode", "secret_key"), [
+    ("test", "sk_live_phase_a"),
+    ("live", "sk_test_phase_a"),
+    ("invalid", "sk_test_phase_a"),
+])
+def test_readiness_rejects_mismatched_or_invalid_stripe_mode(
+    client,
+    monkeypatch,
+    mode,
+    secret_key,
+):
+    monkeypatch.setenv("STRIPE_MODE", mode)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", secret_key)
+    response = client.get("/api/ready")
+    assert response.status_code == 503
+    assert response.json()["detail"]["payments"] == "not_ready"
+
+
+def test_missing_stripe_mode_defaults_safely_to_test(client, monkeypatch):
+    monkeypatch.delenv("STRIPE_MODE", raising=False)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_phase_a")
+    response = client.get("/api/ready")
+    assert response.status_code == 200
+    assert response.json()["payments"] == "test_ready"
 
 
 def test_free_response_never_contains_premium(client):

@@ -2,8 +2,6 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Volume2, VolumeX } from "lucide-react";
 
-const STRIPE_LINK = "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01";
-
 const qaData = [
   {
     q: "Que incluye el informe?",
@@ -15,7 +13,7 @@ const qaData = [
   },
   {
     q: "Como mejoro mi web?",
-    a: "Primero, analiza tu web con nuestra herramienta gratuita. Luego, desbloquea el informe completo por solo 5 euros para obtener las soluciones paso a paso.",
+    a: "Primero, analiza tu web con nuestra herramienta gratuita. Luego, desbloquea el informe completo por 6,99 euros para obtener las soluciones paso a paso.",
   },
   {
     q: "Es seguro pagar?",
@@ -58,7 +56,11 @@ export default function ChatWidget() {
     setMessages((prev) => [...prev, { type: "user", text: qa.q }, { type: "bot", text: qa.a }]);
     speak(qa.a);
     if (qa.q.includes("desbloquear")) {
-      setTimeout(() => window.open(STRIPE_LINK, "_blank"), 2000);
+      setTimeout(() => {
+        setOpen(false);
+        document.querySelector('[data-testid="url-input"]')?.scrollIntoView({ behavior: "smooth" });
+        document.querySelector('[data-testid="url-input"]')?.focus();
+      }, 1000);
     }
     setTimeout(() => {
       chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
@@ -137,5 +139,4 @@ export default function ChatWidget() {
     </>
   );
 }
-
 

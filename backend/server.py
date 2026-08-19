@@ -1,11 +1,15 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from urllib.parse import urljoin, urlparse
+from collections import defaultdict, deque
+from pymongo import ASCENDING
+from pymongo.errors import DuplicateKeyError
 import os
 import logging
 import uuid
@@ -14,6 +18,11 @@ import json
 import re
 import time
 import asyncio
+import hashlib
+import hmac
+import ipaddress
+import socket
+import stripe
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -28,6 +37,14 @@ HTML_FETCH_TIMEOUT_SECONDS = float(os.environ.get("HTML_FETCH_TIMEOUT_SECONDS", 
 OPENAI_TIMEOUT_SECONDS = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "6"))
 QUICK_SCAN_MAX_SECONDS = float(os.environ.get("QUICK_SCAN_MAX_SECONDS", "7.5"))
 DB_WRITE_TIMEOUT_SECONDS = float(os.environ.get("DB_WRITE_TIMEOUT_SECONDS", "1"))
+MAX_HTML_BYTES = int(os.environ.get("MAX_HTML_BYTES", "2000000"))
+MAX_REDIRECTS = int(os.environ.get("MAX_REDIRECTS", "5"))
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "30"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
+PAYMENTS_ENABLED = os.environ.get("PAYMENTS_ENABLED", "false").lower() == "true"
+STRIPE_EXPECTED_AMOUNT = int(os.environ.get("STRIPE_EXPECTED_AMOUNT", "699"))
+STRIPE_CURRENCY = os.environ.get("STRIPE_CURRENCY", "eur").lower()
+REPORT_TOKEN_TTL_DAYS = int(os.environ.get("REPORT_TOKEN_TTL_DAYS", "7"))
 
 app = FastAPI(title="MejoraTuWeb API")
 api_router = APIRouter(prefix="/api")
@@ -54,17 +71,18 @@ if extra_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=None,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Stripe-Signature", "Authorization"],
+    expose_headers=[],
 )
 
 
-# --- Mongo opcional ---
+# --- MongoDB ---
 db = None
 client = None
+db_ready = False
 
 mongo_url = os.environ.get("MONGO_URL")
 db_name = os.environ.get("DB_NAME", "mejoratuweb")
@@ -73,12 +91,12 @@ if mongo_url:
     try:
         client = AsyncIOMotorClient(mongo_url)
         db = client[db_name]
-        logger.info("MongoDB conectado")
+        logger.info("Cliente MongoDB configurado; conexión pendiente de readiness")
     except Exception as e:
         logger.warning(f"MongoDB desactivado: {e}")
         db = None
 else:
-    logger.warning("MONGO_URL no configurado. Backend funcionará sin base de datos.")
+    logger.warning("MONGO_URL no configurado. Pagos y análisis premium quedan bloqueados.")
 
 
 # --- Models ---
@@ -92,7 +110,8 @@ class EmailSubscribeRequest(BaseModel):
 
 class CreateCheckoutRequest(BaseModel):
     origin_url: str
-    analysis_id: Optional[str] = None
+    analysis_id: str
+    email: Optional[str] = None
 
 
 # --- Health ---
@@ -107,10 +126,74 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        "db": "enabled" if db is not None else "disabled"
+    return {"status": "ok", "service": "MejoraTuWeb backend"}
+
+
+async def mongo_is_ready() -> bool:
+    global db_ready
+    if db is None:
+        db_ready = False
+        return False
+    try:
+        await asyncio.wait_for(db.command("ping"), timeout=2)
+        db_ready = True
+    except Exception as exc:
+        logger.warning("MongoDB no disponible para readiness: %s", exc)
+        db_ready = False
+    return db_ready
+
+
+def stripe_mode() -> str:
+    return os.environ.get("STRIPE_MODE", "test").strip().lower()
+
+
+def stripe_config_ready() -> bool:
+    mode = stripe_mode()
+    if mode not in {"test", "live"}:
+        return False
+    secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    expected_prefix = "sk_test_" if mode == "test" else "sk_live_"
+    return all([
+        PAYMENTS_ENABLED,
+        secret_key.startswith(expected_prefix),
+        os.environ.get("STRIPE_WEBHOOK_SECRET", "").startswith("whsec_"),
+        os.environ.get("STRIPE_PRICE_ID", "").startswith("price_"),
+        len(os.environ.get("REPORT_TOKEN_SECRET", "")) >= 32,
+    ])
+
+
+@api_router.get("/ready")
+async def readiness():
+    mongo_ok = await mongo_is_ready()
+    payments_ok = stripe_config_ready()
+    ready = mongo_ok and (not PAYMENTS_ENABLED or payments_ok)
+    status = "ready"
+    if not ready:
+        status = "not_ready_for_payments" if mongo_ok and PAYMENTS_ENABLED else "not_ready"
+    payload = {
+        "status": status,
+        "mongodb": "ready" if mongo_ok else "unavailable",
+        "payments": f"{stripe_mode()}_ready" if payments_ok else ("not_ready" if PAYMENTS_ENABLED else "disabled"),
     }
+    if not ready:
+        raise HTTPException(status_code=503, detail=payload)
+    return payload
+
+
+rate_buckets = defaultdict(deque)
+
+
+def enforce_rate_limit(request: Request, scope: str) -> None:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    key = (scope, client_ip)
+    now = time.monotonic()
+    bucket = rate_buckets[key]
+    while bucket and bucket[0] <= now - RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Inténtalo más tarde.")
+    bucket.append(now)
 
 
 def normalize_url(raw_url: str) -> str:
@@ -125,46 +208,122 @@ def normalize_url(raw_url: str) -> str:
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Solo se admiten URLs HTTP o HTTPS válidas")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="La URL no puede contener credenciales")
     return url
+
+
+def safe_url_for_logs(url: str) -> str:
+    """Conserva solo esquema, host y ruta; nunca query, fragmento ni credenciales."""
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return "invalid-url"
+    return f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
+
+
+def is_blocked_ip(value: str) -> bool:
+    ip = ipaddress.ip_address(value)
+    return any([
+        ip.is_private,
+        ip.is_loopback,
+        ip.is_link_local,
+        ip.is_multicast,
+        ip.is_reserved,
+        ip.is_unspecified,
+    ])
+
+
+async def validate_public_url(url: str) -> str:
+    normalized = normalize_url(url)
+    parsed = urlparse(normalized)
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Host no válido")
+    if hostname.lower() in {"localhost", "localhost.localdomain"}:
+        raise HTTPException(status_code=400, detail="Destino no permitido")
+
+    try:
+        direct_ip = ipaddress.ip_address(hostname)
+        addresses = {str(direct_ip)}
+    except ValueError:
+        try:
+            loop = asyncio.get_running_loop()
+            records = await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM),
+            )
+            addresses = {record[4][0] for record in records}
+        except socket.gaierror as exc:
+            raise HTTPException(status_code=400, detail="No se pudo resolver el dominio") from exc
+
+    if not addresses or any(is_blocked_ip(address) for address in addresses):
+        raise HTTPException(status_code=400, detail="Destino de red no permitido")
+    return normalized
 
 
 async def fetch_html(url: str, timeout: float = HTML_FETCH_TIMEOUT_SECONDS):
     started_at = time.perf_counter()
     timeout_config = httpx.Timeout(timeout, connect=min(timeout, 2.0))
+    current_url = await validate_public_url(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; +https://mejoratuweb.org)"
+    }
 
-    async def _request():
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as http:
-            return await http.get(
-                url,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (compatible; MejoraTuWebBot/1.0; "
-                        "+https://mejoratuweb.org)"
-                    )
-                }
-            )
+    response = None
+    async with httpx.AsyncClient(follow_redirects=False, timeout=timeout_config) as http:
+        for redirect_count in range(MAX_REDIRECTS + 1):
+            current_url = await validate_public_url(current_url)
+            async with http.stream("GET", current_url, headers=headers) as streamed:
+                if streamed.status_code in {301, 302, 303, 307, 308}:
+                    location = streamed.headers.get("location")
+                    if not location or redirect_count >= MAX_REDIRECTS:
+                        raise HTTPException(status_code=400, detail="Demasiadas redirecciones")
+                    current_url = urljoin(current_url, location)
+                    continue
 
-    resp = await asyncio.wait_for(_request(), timeout=timeout + 0.5)
+                content = bytearray()
+                async for chunk in streamed.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > MAX_HTML_BYTES:
+                        raise HTTPException(status_code=400, detail="La respuesta web es demasiado grande")
+                response = httpx.Response(
+                    streamed.status_code,
+                    headers=streamed.headers,
+                    content=bytes(content),
+                    request=streamed.request,
+                )
+                break
+
+    if response is None:
+        raise HTTPException(status_code=400, detail="No se pudo obtener una respuesta web válida")
+
     response_time = time.perf_counter() - started_at
-    return resp, response_time
+    return response, response_time
 
 
-async def save_document(collection: str, data: dict):
+async def save_document(collection: str, data: dict, required: bool = False):
     if db is None:
+        if required:
+            raise HTTPException(status_code=503, detail="Persistencia no disponible")
         return None
 
     try:
-        # Copia limpia para Mongo. Evita que Mongo añada _id al objeto original
-        # que luego FastAPI intenta devolver como JSON.
         document = json.loads(json.dumps(data, default=str))
-        await asyncio.wait_for(
+        result = await asyncio.wait_for(
             db[collection].insert_one(document),
-            timeout=DB_WRITE_TIMEOUT_SECONDS
+            timeout=DB_WRITE_TIMEOUT_SECONDS,
         )
-    except Exception as e:
-        logger.warning(f"No se pudo guardar en MongoDB/{collection}: {e}")
-
-    return None
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("No se pudo guardar en MongoDB/%s: %s", collection, exc)
+        if required:
+            raise HTTPException(status_code=503, detail="No se pudo guardar el análisis") from exc
+        return None
 
 
 # --- Quick Scan ---
@@ -548,7 +707,8 @@ def build_quick_scan_result(
 
 @api_router.post("/quick-scan")
 async def quick_scan(req: AnalyzeRequest, request: Request):
-    url = normalize_url(req.url)
+    enforce_rate_limit(request, "quick-scan")
+    url = await validate_public_url(req.url)
 
     try:
         resp, response_time = await asyncio.wait_for(
@@ -564,8 +724,10 @@ async def quick_scan(req: AnalyzeRequest, request: Request):
             headers_dict=headers_dict,
             response_time=response_time
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Quick scan fallback para {url}: {e}")
+        logger.warning("Quick scan fallback para %s: %s", safe_url_for_logs(url), e)
         result = build_quick_scan_result(
             url=url,
             response_time=QUICK_SCAN_MAX_SECONDS,
@@ -676,16 +838,54 @@ def build_fallback_analysis(quick: dict) -> dict:
     }
 
 
+def build_free_preview(full_result: dict) -> dict:
+    errors = full_result.get("errors") or []
+    return {
+        "score": full_result.get("score", 0),
+        "summary": full_result.get("summary", "Análisis completado."),
+        "money_lost_monthly": full_result.get("money_lost_monthly", 0),
+        "error_count": len(errors),
+        "critical_error_count": len([
+            error for error in errors if error.get("severity") == "critical"
+        ]),
+    }
+
+
+async def persist_analysis(url: str, full_result: dict, fallback_reason: Optional[str] = None) -> dict:
+    analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    document = {
+        "analysis_id": analysis_id,
+        "url": url,
+        "result": full_result,
+        "payment_status": "unpaid",
+        "created_at": now,
+        "updated_at": now,
+    }
+    if fallback_reason:
+        document["fallback_reason"] = fallback_reason
+    await save_document("analyses", document, required=True)
+    return {
+        "analysis_id": analysis_id,
+        "url": url,
+        "result": build_free_preview(full_result),
+        "is_premium": False,
+    }
+
+
 @api_router.post("/analyze")
 async def analyze_url(req: AnalyzeRequest, request: Request):
-    url = normalize_url(req.url)
+    enforce_rate_limit(request, "analyze")
+    if not await mongo_is_ready():
+        raise HTTPException(status_code=503, detail="El análisis no puede guardarse en este momento")
+    url = await validate_public_url(req.url)
 
     try:
         quick = await quick_scan(req, request)
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error ejecutando quick_scan en analyze_url para {url}")
+        logger.exception("Error ejecutando quick_scan en analyze_url para %s", safe_url_for_logs(url))
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo analizar la URL: {str(e)}"
@@ -694,37 +894,15 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
     openai_key = os.environ.get("OPENAI_API_KEY")
 
     if not openai_key:
-        analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-        result = {
-            "analysis_id": analysis_id,
-            "url": url,
-            "result": build_fallback_analysis(quick)
-        }
-
-        await save_document("analyses", {
-            **result,
-            "is_premium": False,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-
-        return result
+        return await persist_analysis(url, build_fallback_analysis(quick), "openai_not_configured")
 
     # OpenAI directo por HTTP, sin librería externa.
     try:
         fetched, _response_time = await fetch_html(url, timeout=HTML_FETCH_TIMEOUT_SECONDS)
         html = fetched.text[:12000]
     except Exception as e:
-        logger.exception(f"Error accediendo a HTML para análisis IA: {url}")
-        analysis = build_fallback_analysis(quick)
-        analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-        result = {"analysis_id": analysis_id, "url": url, "result": analysis}
-        await save_document("analyses", {
-            **result,
-            "is_premium": False,
-            "fallback_reason": "html_fetch_failed",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-        return result
+        logger.exception("Error accediendo a HTML para análisis IA: %s", safe_url_for_logs(url))
+        return await persist_analysis(url, build_fallback_analysis(quick), "html_fetch_failed")
 
     prompt = f"""
 Analiza esta web y devuelve SOLO JSON válido con esta estructura exacta:
@@ -785,16 +963,7 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
 
         if ai_resp.status_code >= 400:
             logger.warning("OpenAI devolvió error %s; usando fallback heurístico", ai_resp.status_code)
-            analysis = build_fallback_analysis(quick)
-            analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-            result = {"analysis_id": analysis_id, "url": url, "result": analysis}
-            await save_document("analyses", {
-                **result,
-                "is_premium": False,
-                "fallback_reason": "openai_error",
-                "created_at": datetime.now(timezone.utc).isoformat()
-            })
-            return result
+            return await persist_analysis(url, build_fallback_analysis(quick), "openai_error")
 
         response_text = ai_resp.json()["choices"][0]["message"]["content"]
 
@@ -808,32 +977,9 @@ Todo en español. Mínimo 5 errores y 4 oportunidades. Sin markdown.
 
     except Exception as e:
         logger.exception("Error procesando respuesta IA")
-        analysis = build_fallback_analysis(quick)
-        analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-        result = {"analysis_id": analysis_id, "url": url, "result": analysis}
-        await save_document("analyses", {
-            **result,
-            "is_premium": False,
-            "fallback_reason": "ai_processing_failed",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-        return result
+        return await persist_analysis(url, build_fallback_analysis(quick), "ai_processing_failed")
 
-    analysis_id = f"analysis_{uuid.uuid4().hex[:12]}"
-
-    result = {
-        "analysis_id": analysis_id,
-        "url": url,
-        "result": analysis
-    }
-
-    await save_document("analyses", {
-        **result,
-        "is_premium": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-
-    return result
+    return await persist_analysis(url, analysis)
 
 
 # --- Email ---
@@ -849,28 +995,278 @@ async def email_subscribe(req: EmailSubscribeRequest):
     return {"message": "Suscrito correctamente"}
 
 
-# --- Payments simplificado: usa tus enlaces Stripe directos ---
-@api_router.post("/payments/create-checkout")
-async def create_checkout(req: CreateCheckoutRequest):
-    return {
-        "url": "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01",
-        "message": "Redirección a Auditoría Express"
+# --- Payments and premium delivery (explicit Stripe Test/Live mode) ---
+def require_payment_dependencies() -> None:
+    if not PAYMENTS_ENABLED:
+        raise HTTPException(status_code=503, detail="Los pagos están desactivados")
+    if not stripe_config_ready():
+        raise HTTPException(status_code=503, detail="Stripe no está configurado para el modo seleccionado")
+    if db is None or not db_ready:
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+
+
+def checkout_origin(raw_origin: str) -> str:
+    parsed = urlparse(raw_origin)
+    origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+    configured = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    allowed = {configured, "http://localhost:3000", "http://localhost:5173"}
+    if origin not in allowed:
+        raise HTTPException(status_code=400, detail="Origen de Checkout no permitido")
+    return origin
+
+
+def value_from(obj, key, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+async def create_stripe_session(**kwargs):
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    return await asyncio.to_thread(stripe.checkout.Session.create, **kwargs)
+
+
+async def retrieve_stripe_session(session_id: str):
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    return await asyncio.to_thread(
+        stripe.checkout.Session.retrieve,
+        session_id,
+        expand=["line_items.data.price"],
+    )
+
+
+def validate_paid_session(session, expected_analysis_id: str) -> str:
+    metadata = value_from(session, "metadata", {}) or {}
+    analysis_id = value_from(session, "client_reference_id") or value_from(metadata, "analysis_id")
+    if analysis_id != expected_analysis_id:
+        raise HTTPException(status_code=400, detail="El pago no corresponde al análisis")
+    if value_from(session, "payment_status") != "paid":
+        raise HTTPException(status_code=400, detail="El pago no está confirmado")
+    if value_from(session, "amount_total") != STRIPE_EXPECTED_AMOUNT:
+        raise HTTPException(status_code=400, detail="Importe de pago incorrecto")
+    if str(value_from(session, "currency", "")).lower() != STRIPE_CURRENCY:
+        raise HTTPException(status_code=400, detail="Moneda de pago incorrecta")
+
+    line_items = value_from(value_from(session, "line_items", {}), "data", []) or []
+    price_ids = {
+        value_from(value_from(item, "price", {}), "id")
+        for item in line_items
     }
+    if os.environ["STRIPE_PRICE_ID"] not in price_ids:
+        raise HTTPException(status_code=400, detail="Producto de Stripe incorrecto")
+    return analysis_id
+
+
+def hash_report_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+@api_router.post("/payments/create-checkout")
+async def create_checkout(req: CreateCheckoutRequest, request: Request):
+    enforce_rate_limit(request, "checkout")
+    require_payment_dependencies()
+    if not await mongo_is_ready():
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+    origin = checkout_origin(req.origin_url)
+    analysis = await db.analyses.find_one({"analysis_id": req.analysis_id})
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Análisis no encontrado")
+    if analysis.get("payment_status") == "paid":
+        raise HTTPException(status_code=409, detail="El análisis ya está pagado")
+    if req.email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", req.email):
+        raise HTTPException(status_code=400, detail="Email no válido")
+
+    session_args = {
+        "mode": "payment",
+        "line_items": [{"price": os.environ["STRIPE_PRICE_ID"], "quantity": 1}],
+        "client_reference_id": req.analysis_id,
+        "metadata": {"analysis_id": req.analysis_id},
+        "success_url": f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+        "cancel_url": f"{origin}/?checkout=cancelled",
+    }
+    if req.email:
+        session_args["customer_email"] = req.email
+    session = await create_stripe_session(**session_args)
+    session_id = value_from(session, "id")
+    await db.analyses.update_one(
+        {"analysis_id": req.analysis_id, "payment_status": "unpaid"},
+        {"$set": {
+            "payment_status": "checkout_started",
+            "stripe_session_id": session_id,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+    )
+    return {"url": value_from(session, "url"), "session_id": session_id}
+
+
+@api_router.post("/payments/webhook")
+async def stripe_webhook(request: Request):
+    if not stripe_config_ready():
+        raise HTTPException(status_code=503, detail="Stripe no está configurado para el modo seleccionado")
+    if not await mongo_is_ready():
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            signature,
+            os.environ["STRIPE_WEBHOOK_SECRET"],
+        )
+    except (ValueError, stripe.error.SignatureVerificationError) as exc:
+        raise HTTPException(status_code=400, detail="Firma Stripe inválida") from exc
+
+    event_id = value_from(event, "id")
+    event_type = value_from(event, "type")
+    if event_type != "checkout.session.completed":
+        return {"received": True, "processed": False}
+
+    event_session = value_from(value_from(event, "data", {}), "object", {})
+    session_id = value_from(event_session, "id")
+    analysis_id = value_from(event_session, "client_reference_id") or value_from(
+        value_from(event_session, "metadata", {}) or {}, "analysis_id"
+    )
+    if not session_id or not analysis_id:
+        raise HTTPException(status_code=400, detail="Evento Stripe incompleto")
+
+    previous = await db.stripe_events.find_one({"event_id": event_id, "status": "completed"})
+    if previous:
+        return {"received": True, "processed": False, "duplicate": True}
+
+    session = await retrieve_stripe_session(session_id)
+    validate_paid_session(session, analysis_id)
+    analysis = await db.analyses.find_one({
+        "analysis_id": analysis_id,
+        "stripe_session_id": session_id,
+    })
+    if not analysis:
+        raise HTTPException(status_code=400, detail="Análisis o sesión no vinculados")
+
+    customer_details = value_from(session, "customer_details", {}) or {}
+    buyer_email = value_from(customer_details, "email") or value_from(session, "customer_email")
+    now = datetime.now(timezone.utc)
+    await db.analyses.update_one(
+        {"analysis_id": analysis_id, "stripe_session_id": session_id},
+        {"$set": {
+            "payment_status": "paid",
+            "email": buyer_email,
+            "paid_at": now,
+            "updated_at": now,
+        }},
+    )
+    try:
+        await db.stripe_events.update_one(
+            {"event_id": event_id},
+            {"$set": {
+                "event_id": event_id,
+                "type": event_type,
+                "analysis_id": analysis_id,
+                "status": "completed",
+                "processed_at": now,
+            }},
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        return {"received": True, "processed": False, "duplicate": True}
+    return {"received": True, "processed": True}
 
 
 @api_router.get("/payments/status/{session_id}")
-async def payment_status(session_id: str):
+async def payment_status(session_id: str, request: Request):
+    enforce_rate_limit(request, "payment-status")
+    require_payment_dependencies()
+    if not await mongo_is_ready():
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+    if not re.fullmatch(r"cs_test_[A-Za-z0-9_]+", session_id):
+        raise HTTPException(status_code=400, detail="Sesión Stripe Test no válida")
+    analysis = await db.analyses.find_one({"stripe_session_id": session_id})
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    if analysis.get("payment_status") != "paid":
+        return {"status": "pending", "payment_status": analysis.get("payment_status", "unpaid")}
+
+    token_payload = f"{analysis['analysis_id']}:{session_id}".encode("utf-8")
+    token = hmac.new(
+        os.environ["REPORT_TOKEN_SECRET"].encode("utf-8"),
+        token_payload,
+        hashlib.sha256,
+    ).hexdigest()
+    expires_at = analysis.get("access_token_expires_at") or (
+        datetime.now(timezone.utc) + timedelta(days=REPORT_TOKEN_TTL_DAYS)
+    )
+    await db.analyses.update_one(
+        {"analysis_id": analysis["analysis_id"], "payment_status": "paid"},
+        {"$set": {
+            "access_token_hash": hash_report_token(token),
+            "access_token_expires_at": expires_at,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+    )
     return {
-        "status": "external_checkout",
-        "payment_status": "managed_by_stripe_link"
+        "status": "complete",
+        "payment_status": "paid",
+        "analysis_id": analysis["analysis_id"],
+        "access_token": token,
+        "expires_at": expires_at,
+    }
+
+
+@api_router.get("/reports/{analysis_id}")
+async def premium_report(
+    analysis_id: str,
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+):
+    enforce_rate_limit(request, "premium-report")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Autorización premium necesaria")
+    token = authorization.removeprefix("Bearer ").strip()
+    if db is None:
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+    if not await mongo_is_ready():
+        raise HTTPException(status_code=503, detail="Persistencia no disponible")
+    analysis = await db.analyses.find_one({"analysis_id": analysis_id})
+    if not analysis or analysis.get("payment_status") != "paid":
+        raise HTTPException(status_code=403, detail="Informe premium no autorizado")
+    expected_hash = analysis.get("access_token_hash", "")
+    if not expected_hash or not hmac.compare_digest(expected_hash, hash_report_token(token)):
+        raise HTTPException(status_code=403, detail="Token premium no válido")
+    expires_at = analysis.get("access_token_expires_at")
+    now = datetime.now(timezone.utc)
+    if expires_at and expires_at.tzinfo is None:
+        now = now.replace(tzinfo=None)
+    if not expires_at or expires_at <= now:
+        raise HTTPException(status_code=403, detail="Token premium caducado")
+    return {
+        "analysis_id": analysis_id,
+        "url": analysis["url"],
+        "result": analysis["result"],
+        "is_premium": True,
     }
 
 
 app.include_router(api_router)
 
 
+@app.on_event("startup")
+async def initialize_database():
+    if not await mongo_is_ready():
+        return
+    try:
+        await db.analyses.create_index([("analysis_id", ASCENDING)], unique=True)
+        await db.analyses.create_index(
+            [("stripe_session_id", ASCENDING)],
+            unique=True,
+            sparse=True,
+        )
+        await db.stripe_events.create_index([("event_id", ASCENDING)], unique=True)
+    except Exception as exc:
+        global db_ready
+        db_ready = False
+        logger.error("No se pudieron preparar los índices MongoDB: %s", exc)
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     if client:
         client.close()
-

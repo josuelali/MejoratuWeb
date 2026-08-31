@@ -1,4 +1,10 @@
-import { getPageParams, trackEventOnce } from "./analytics";
+import {
+  getPageParams,
+  trackCheckoutClick,
+  trackCheckoutError,
+  trackEventOnce,
+  trackPurchase,
+} from "./analytics";
 
 describe("analytics deduplication", () => {
   beforeEach(() => {
@@ -19,7 +25,7 @@ describe("analytics deduplication", () => {
   });
 
   test("allows different approved events for the same analysis", () => {
-    trackEventOnce("purchase_completed", "session_1", {});
+    trackEventOnce("purchase", "session_1", {});
     trackEventOnce("premium_report_viewed", "analysis_1", {});
     trackEventOnce("pdf_downloaded", "analysis_1", {});
     expect(window.gtag).toHaveBeenCalledTimes(3);
@@ -33,12 +39,77 @@ describe("analytics deduplication", () => {
     );
 
     const params = getPageParams();
-    trackEventOnce("purchase_completed", "purchase_1", params);
+    trackEventOnce("purchase", "purchase_1", params);
 
     expect(params.page_location).toBe(`${window.location.origin}/payment-success`);
     expect(params.page_path).toBe("/payment-success");
     expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("session_id");
     expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("cs_test_sensitive");
     expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("premium_sensitive");
+  });
+
+  test("emits only the standard GA4 begin_checkout event", () => {
+    trackCheckoutClick({
+      ctaText: "Desbloquear informe completo por 6,99€",
+      ctaLocation: "premium_unlock",
+      analyzedDomain: "example.com",
+      analysisId: "analysis_1",
+    });
+
+    expect(window.gtag).toHaveBeenCalledTimes(1);
+    expect(window.gtag).toHaveBeenCalledWith(
+      "event",
+      "begin_checkout",
+      expect.objectContaining({
+        currency: "EUR",
+        value: 6.99,
+        items: [expect.objectContaining({ item_id: "premium_web_report", quantity: 1 })],
+      })
+    );
+    expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("checkout_started");
+  });
+
+  test("emits purchase once with ecommerce parameters and no Stripe session id", () => {
+    trackPurchase({
+      uniqueKey: "cs_live_sensitive",
+      transactionId: "analysis_1",
+      analysisId: "analysis_1",
+      analyzedDomain: "example.com",
+    });
+    trackPurchase({
+      uniqueKey: "cs_live_sensitive",
+      transactionId: "analysis_1",
+      analysisId: "analysis_1",
+      analyzedDomain: "example.com",
+    });
+
+    expect(window.gtag).toHaveBeenCalledTimes(1);
+    expect(window.gtag).toHaveBeenCalledWith(
+      "event",
+      "purchase",
+      expect.objectContaining({
+        transaction_id: "analysis_1",
+        currency: "EUR",
+        value: 6.99,
+        items: [expect.objectContaining({ item_id: "premium_web_report", quantity: 1 })],
+      })
+    );
+    expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("cs_live_sensitive");
+    expect(JSON.stringify(window.gtag.mock.calls)).not.toContain("purchase_completed");
+  });
+
+  test("emits checkout errors without sensitive Stripe data", () => {
+    trackCheckoutError({
+      ctaLocation: "quick_scan_card",
+      analyzedDomain: "example.com",
+      analysisId: "analysis_1",
+      errorCode: 503,
+    });
+
+    expect(window.gtag).toHaveBeenCalledWith(
+      "event",
+      "checkout_error",
+      expect.objectContaining({ error_code: 503, checkout_provider: "Stripe" })
+    );
   });
 });

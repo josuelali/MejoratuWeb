@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
-import { getAnalyzedDomain, trackCheckoutClick } from "../lib/analytics";
+import { getAnalyzedDomain, trackCheckoutClick, trackCheckoutError } from "../lib/analytics";
 import { createCheckout } from "../lib/api";
 import { Crown, Check, ArrowRight } from "lucide-react";
 
@@ -23,6 +23,12 @@ export default function PremiumUnlock({ analysisId, url }) {
       });
       window.location.assign(checkout.url);
     } catch (checkoutError) {
+      trackCheckoutError({
+        ctaLocation: "premium_unlock",
+        analyzedDomain: getAnalyzedDomain(url),
+        analysisId,
+        errorCode: checkoutError.response?.status || "network_error",
+      });
       setError(checkoutError.response?.data?.detail || "Checkout no disponible");
       setLoading(false);
     }

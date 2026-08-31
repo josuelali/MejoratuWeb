@@ -4,7 +4,7 @@ import { CheckCircle, Loader2, XCircle } from "lucide-react";
 import axios from "axios";
 import AnalysisResults from "../components/AnalysisResults";
 import { API } from "../lib/api";
-import { getAnalyzedDomain, getPageParams, trackEventOnce } from "../lib/analytics";
+import { getAnalyzedDomain, getPageParams, trackEventOnce, trackPurchase } from "../lib/analytics";
 import { isValidCheckoutSessionId } from "../lib/paymentSession";
 
 export default function PaymentSuccess() {
@@ -43,7 +43,12 @@ export default function PaymentSuccess() {
             currency: "EUR",
             value: 6.99,
           };
-          trackEventOnce("purchase_completed", sessionId, analyticsParams);
+          trackPurchase({
+            uniqueKey: sessionId,
+            transactionId: analysisId,
+            analysisId,
+            analyzedDomain: analyticsParams.analyzed_domain,
+          });
           trackEventOnce("premium_report_viewed", analysisId, analyticsParams);
           return;
         }

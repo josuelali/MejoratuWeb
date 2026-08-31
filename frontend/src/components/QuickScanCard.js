@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
-import { getAnalyzedDomain, getPageParams, trackCheckoutClick } from "../lib/analytics";
+import { getAnalyzedDomain, getPageParams, trackCheckoutClick, trackCheckoutError } from "../lib/analytics";
 import { createCheckout } from "../lib/api";
 import { Check, X, Shield, Clock, Globe, Loader2, Rocket, Lock, AlertTriangle, ArrowRight } from "lucide-react";
 
@@ -26,6 +26,12 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
       });
       window.location.assign(checkout.url);
     } catch (error) {
+      trackCheckoutError({
+        ctaLocation: "quick_scan_card",
+        analyzedDomain,
+        analysisId,
+        errorCode: error.response?.status || "network_error",
+      });
       setCheckoutError(error.response?.data?.detail || "Checkout no disponible");
       setCheckoutLoading(false);
     }

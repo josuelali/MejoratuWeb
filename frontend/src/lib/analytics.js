@@ -1,4 +1,10 @@
 const CHECKOUT_PROVIDER = "Stripe";
+const REPORT_ITEM = {
+  item_id: "premium_web_report",
+  item_name: "Informe completo MejoraTuWeb",
+  price: 6.99,
+  quantity: 1,
+};
 
 function cleanParams(params = {}) {
   return Object.fromEntries(
@@ -62,7 +68,32 @@ export function trackCheckoutClick({ ctaText, ctaLocation, analyzedDomain, analy
     analysis_id: analysisId,
     checkout_provider: CHECKOUT_PROVIDER,
     currency: "EUR",
+    value: 6.99,
+    items: [REPORT_ITEM],
   };
 
-  trackEventOnce("checkout_started", analysisId || ctaLocation, params);
+  trackEventOnce("begin_checkout", analysisId || ctaLocation, params);
+}
+
+export function trackCheckoutError({ ctaLocation, analyzedDomain, analysisId, errorCode } = {}) {
+  trackEvent("checkout_error", {
+    ...getPageParams(),
+    cta_location: ctaLocation,
+    analyzed_domain: analyzedDomain,
+    analysis_id: analysisId,
+    checkout_provider: CHECKOUT_PROVIDER,
+    error_code: errorCode,
+  });
+}
+
+export function trackPurchase({ uniqueKey, transactionId, analyzedDomain, analysisId } = {}) {
+  trackEventOnce("purchase", uniqueKey, {
+    ...getPageParams(),
+    transaction_id: transactionId,
+    analysis_id: analysisId,
+    analyzed_domain: analyzedDomain,
+    currency: "EUR",
+    value: 6.99,
+    items: [REPORT_ITEM],
+  });
 }

@@ -23,7 +23,7 @@ export default function PremiumUnlock({ analysisId, url }) {
       });
       window.location.assign(checkout.url);
     } catch (checkoutError) {
-      setError(checkoutError.response?.data?.detail || "Checkout Test no disponible");
+      setError(checkoutError.response?.data?.detail || "Checkout no disponible");
       setLoading(false);
     }
   };
@@ -76,4 +76,3 @@ export default function PremiumUnlock({ analysisId, url }) {
     </div>
   );
 }
-

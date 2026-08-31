@@ -291,6 +291,26 @@ def test_paid_report_requires_valid_unexpired_token(client, monkeypatch):
     assert client.get(path, headers={"Authorization": f"Bearer {token}"}).status_code == 403
 
 
+@pytest.mark.parametrize("session_id", ["cs_test_payment_status", "cs_live_payment_status"])
+def test_payment_status_accepts_test_and_live_checkout_sessions(client, monkeypatch, session_id):
+    analysis = create_analysis(client)
+    session = start_checkout(client, monkeypatch, analysis["analysis_id"], session_id)
+    assert deliver_webhook(client, monkeypatch, session, f"evt_{session_id}").status_code == 200
+
+    response = client.get(f"/api/payments/status/{session_id}")
+
+    assert response.status_code == 200
+    assert response.json()["payment_status"] == "paid"
+
+
+@pytest.mark.parametrize("session_id", ["cs_invalid_123", "pi_live_123", "cs_live_invalid-value"])
+def test_payment_status_rejects_invalid_checkout_session_ids(client, session_id):
+    response = client.get(f"/api/payments/status/{session_id}")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Sesión Stripe no válida"
+
+
 def test_restart_does_not_lose_analysis(client):
     analysis = create_analysis(client)
     server.db_ready = False

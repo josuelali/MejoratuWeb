@@ -26,7 +26,7 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
       });
       window.location.assign(checkout.url);
     } catch (error) {
-      setCheckoutError(error.response?.data?.detail || "Checkout Test no disponible");
+      setCheckoutError(error.response?.data?.detail || "Checkout no disponible");
       setCheckoutLoading(false);
     }
   };
@@ -195,4 +195,3 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
     </motion.section>
   );
 }
-

@@ -5,6 +5,7 @@ import axios from "axios";
 import AnalysisResults from "../components/AnalysisResults";
 import { API } from "../lib/api";
 import { getAnalyzedDomain, getPageParams, trackEventOnce } from "../lib/analytics";
+import { isValidCheckoutSessionId } from "../lib/paymentSession";
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -14,7 +15,7 @@ export default function PaymentSuccess() {
   const sessionId = searchParams.get("session_id") || window.sessionStorage.getItem("mtw_checkout_session_id");
 
   useEffect(() => {
-    if (!sessionId || !/^cs_(test|live)_/.test(sessionId)) {
+    if (!isValidCheckoutSessionId(sessionId)) {
       setStatus("failed");
       return undefined;
     }

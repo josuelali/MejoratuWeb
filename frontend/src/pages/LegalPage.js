@@ -50,7 +50,7 @@ Al usar Mejora Tu WEB, aceptas estos terminos y condiciones en su totalidad.
 2. DESCRIPCION DEL SERVICIO
 Mejora Tu WEB ofrece:
 - Escaneo rapido gratuito de sitios web
-- Analisis completo con IA (servicio premium, 5 euros)
+- Analisis completo con IA (servicio premium, 6,99 euros)
 - Informes detallados con recomendaciones
 
 3. USO DEL SERVICIO
@@ -60,7 +60,7 @@ Mejora Tu WEB ofrece:
 
 4. PAGOS Y REEMBOLSOS
 - Los pagos se procesan de forma segura a traves de Stripe
-- El precio del informe premium es de 5 euros (IVA incluido)
+- El precio del informe premium es de 6,99 euros (IVA incluido)
 - Ofrecemos garantia de satisfaccion de 7 dias
 
 5. PROPIEDAD INTELECTUAL

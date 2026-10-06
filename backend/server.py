@@ -796,7 +796,9 @@ def build_fallback_analysis(quick: dict) -> dict:
 
     return {
         "score": score,
-        "money_lost_monthly": max(49, int((100 - score) * 7)),
+        # A static audit cannot substantiate a monthly euro loss estimate.
+        # Keep the field for API compatibility without fabricating a claim.
+        "money_lost_monthly": 0,
         "summary": "Análisis generado en modo rápido.",
         "errors": errors,
         "opportunities": [
@@ -1009,7 +1011,8 @@ def checkout_origin(raw_origin: str) -> str:
     parsed = urlparse(raw_origin)
     origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
     configured = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
-    allowed = {configured, "http://localhost:3000", "http://localhost:5173"}
+    # Keep checkout origin validation aligned with the CORS allow-list.
+    allowed = set(allowed_origins) | {configured, "http://localhost:3000", "http://localhost:5173"}
     if origin not in allowed:
         raise HTTPException(status_code=400, detail="Origen de Checkout no permitido")
     return origin

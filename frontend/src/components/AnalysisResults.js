@@ -85,7 +85,9 @@ export default function AnalysisResults({ data }) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <ScoreDisplay score={result.score || 0} label={t("score")} />
-          <MoneyLostCard amount={result.money_lost_monthly || 0} />
+          {Number(result.money_lost_monthly) > 0 && (
+            <MoneyLostCard amount={result.money_lost_monthly} />
+          )}
         </div>
 
         {!isPremium && (

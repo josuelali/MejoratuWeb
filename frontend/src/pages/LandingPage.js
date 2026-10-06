@@ -89,7 +89,8 @@ export default function LandingPage() {
         className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden"
         data-testid="hero-section"
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A12] via-[#05050A] to-[#05050A]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(0,229,255,.12),transparent_34%),linear-gradient(180deg,#0A0A12,#05050A 72%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(0,229,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,.08)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
           <h1
@@ -99,8 +100,11 @@ export default function LandingPage() {
             {t("hero_title")}
           </h1>
 
-          <p className="text-base sm:text-lg text-zinc-400 mb-12">
+          <p className="text-base sm:text-lg text-zinc-400 mb-4">
             {t("hero_subtitle")}
+          </p>
+          <p className="mx-auto mb-12 max-w-xl text-sm leading-6 text-zinc-500">
+            Analízala, descubre qué está fallando y decide hasta dónde quieres mejorarla.
           </p>
 
           {/* INPUT */}
@@ -127,6 +131,15 @@ export default function LandingPage() {
               >
                 {quickLoading ? "Analizando..." : t("analyze_btn")}
               </button>
+            </div>
+
+            <div className="mt-8 grid grid-cols-2 gap-3 text-left sm:grid-cols-4" aria-hidden="true">
+              {["SEO", "RENDIMIENTO", "MÓVIL", "CONVERSIÓN"].map((label, index) => (
+                <div key={label} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.04]">
+                  <div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold tracking-[0.16em] text-zinc-500">{label}</span><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" style={{ animationDelay: `${index * 180}ms` }} /></div>
+                  <div className="h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-violet-300" style={{ width: `${58 + index * 8}%` }} /></div>
+                </div>
+              ))}
             </div>
 
             {error && (

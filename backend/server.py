@@ -68,10 +68,12 @@ if extra_origins:
         if origin.strip()
     ])
 
+PREVIEW_ORIGIN_REGEX = r"^https://mejoratuweb(?:-[a-z0-9-]+)?\.vercel\.app$"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=None,
+    allow_origin_regex=PREVIEW_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Stripe-Signature", "Authorization"],
@@ -1013,7 +1015,7 @@ def checkout_origin(raw_origin: str) -> str:
     configured = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     # Keep checkout origin validation aligned with the CORS allow-list.
     allowed = set(allowed_origins) | {configured, "http://localhost:3000", "http://localhost:5173"}
-    if origin not in allowed:
+    if origin not in allowed and not re.fullmatch(PREVIEW_ORIGIN_REGEX, origin):
         raise HTTPException(status_code=400, detail="Origen de Checkout no permitido")
     return origin
 

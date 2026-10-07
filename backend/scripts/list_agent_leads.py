@@ -16,13 +16,16 @@ def main() -> int:
         print("MONGO_URL no configurado", file=sys.stderr)
         return 2
     limit = min(max(int(os.environ.get("AGENT_LEADS_LIMIT", "50")), 1), 200)
+    details = "--details" in sys.argv[1:]
     client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
     try:
         client.admin.command("ping")
         database_name = os.environ.get("MONGO_DB_NAME", "mejoratuweb")
         collection = client[database_name].agent_leads
         rows = []
-        projection = {"_id": 1, "created_at": 1, "first_name": 1, "last_name": 1, "phone": 1, "email": 1, "source": 1}
+        projection = {"_id": 1, "created_at": 1, "source": 1}
+        if details:
+            projection.update({"first_name": 1, "last_name": 1, "phone": 1, "email": 1})
         for lead in collection.find({}, projection).sort("created_at", -1).limit(limit):
             lead["_id"] = str(lead["_id"])
             rows.append(lead)

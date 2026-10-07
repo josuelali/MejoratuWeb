@@ -118,6 +118,11 @@ class AgentLeadRequest(BaseModel):
     privacy_consent: bool
 
 
+PRIVACY_NOTICE_VERSION = "privacy-v1-2026-10-08"
+PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9 .()\-]{6,38}$")
+NAME_PATTERN = re.compile(r"^[\wÀ-ÿ][\wÀ-ÿ .'-]*$", re.UNICODE)
+
+
 class CreateCheckoutRequest(BaseModel):
     origin_url: str
     analysis_id: str
@@ -1017,6 +1022,11 @@ async def agent_lead(req: AgentLeadRequest, request: Request):
         raise HTTPException(status_code=422, detail="Completa los datos y acepta la privacidad")
     if len(values["first_name"]) > 80 or len(values["last_name"]) > 120 or len(values["phone"]) > 40 or len(values["email"]) > 254:
         raise HTTPException(status_code=422, detail="Datos no válidos")
+    if not NAME_PATTERN.fullmatch(values["first_name"]) or not NAME_PATTERN.fullmatch(values["last_name"]):
+        raise HTTPException(status_code=422, detail="Nombre o apellidos no válidos")
+    digits = re.sub(r"\D", "", values["phone"])
+    if not PHONE_PATTERN.fullmatch(values["phone"]) or len(digits) < 7 or len(digits) > 15:
+        raise HTTPException(status_code=422, detail="Teléfono no válido")
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", values["email"]):
         raise HTTPException(status_code=422, detail="Correo electrónico no válido")
     dedupe_key = hashlib.sha256(f"{values['email'].lower()}|{values['phone']}".encode()).hexdigest()
@@ -1026,6 +1036,8 @@ async def agent_lead(req: AgentLeadRequest, request: Request):
         "phone": values["phone"],
         "email": values["email"].lower(),
         "privacy_consent": True,
+        "privacy_notice_version": PRIVACY_NOTICE_VERSION,
+        "privacy_consent_at": datetime.now(timezone.utc).isoformat(),
         "dedupe_key": dedupe_key,
         "source": "commercial_ladder",
         "created_at": datetime.now(timezone.utc).isoformat(),

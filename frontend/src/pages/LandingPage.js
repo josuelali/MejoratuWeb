@@ -7,6 +7,7 @@ import AnalysisResults from "../components/AnalysisResults";
 import FloatingCTA from "../components/FloatingCTA";
 import ChatWidget from "../components/ChatWidget";
 import CommercialLadder from "../components/CommercialLadder";
+import CommercialFaq from "../components/CommercialFaq";
 import { Input } from "../components/ui/input";
 import { Search, Shield, Gauge, Eye } from "lucide-react";
 import axios from "axios";
@@ -174,6 +175,7 @@ export default function LandingPage() {
       </section>
 
       <CommercialLadder />
+      <CommercialFaq />
 
       {/* RESULTS */}
       <div ref={resultsRef} data-testid="results-section">

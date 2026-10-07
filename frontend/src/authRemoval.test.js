@@ -29,11 +29,24 @@ describe("public V1 without legacy authentication", () => {
     expect(container.querySelector('[data-testid="language-toggle"]')).not.toBeNull();
   });
 
-  test("keeps the independent try action without the redundant floating unlock action", () => {
+  test("keeps analysis accessible while removing redundant floating controls", () => {
     act(() => root.render(<App />));
 
-    expect(container.querySelector('[data-testid="floating-try-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="analyze-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="floating-try-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="floating-unlock-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-widget-btn"]')).toBeNull();
+  });
+
+  test("preserves the commercial destinations and opens the agent form without checkout", () => {
+    act(() => root.render(<App />));
+    expect(container.querySelector('[data-testid="ladder-49-cta"]').href).toBe("https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00");
+    expect(container.querySelector('[data-testid="ladder-499-cta"]').tagName).toBe("BUTTON");
+    act(() => container.querySelector('[data-testid="ladder-499-cta"]').click());
+    expect(container.querySelector('[data-testid="agent-lead-form"] input[type="email"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-form"] a')).toBeNull();
+    expect(container.textContent).toContain("REPRESENTACIÓN DEL SERVICIO");
+    expect(container.textContent).toContain("DEMO");
   });
 
   test("legacy OAuth fragments stay on the public landing page", () => {

@@ -1,11 +1,10 @@
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
 import Header from "../components/Header";
 import QuickScanCard from "../components/QuickScanCard";
 import AnalysisResults from "../components/AnalysisResults";
-import FloatingCTA from "../components/FloatingCTA";
-import ChatWidget from "../components/ChatWidget";
+import { HeroAtmosphere } from "../components/VisualScenes";
 import CommercialLadder from "../components/CommercialLadder";
 import CommercialFaq from "../components/CommercialFaq";
 import { Input } from "../components/ui/input";
@@ -16,6 +15,7 @@ import { API } from "../lib/api";
 
 export default function LandingPage() {
   const { t } = useLanguage();
+  const reduced = useReducedMotion();
   const [url, setUrl] = useState("");
   const [quickScan, setQuickScan] = useState(null);
   const [quickLoading, setQuickLoading] = useState(false);
@@ -51,7 +51,7 @@ export default function LandingPage() {
       setQuickLoading(false);
 
       setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+        resultsRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
       }, 200);
 
       setAiLoading(true);
@@ -83,19 +83,19 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#05050A] text-white">
+    <div className="mtw-experience min-h-screen bg-[#05050A] text-white">
       <Header />
 
       <section
-        className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden"
+        className="hero-live relative min-h-screen flex items-center justify-center pt-16 overflow-hidden"
         data-testid="hero-section"
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(0,229,255,.12),transparent_34%),linear-gradient(180deg,#0A0A12,#05050A 72%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(0,229,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,.08)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
+        <HeroAtmosphere />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
+          <p className="hero-kicker"><span /> TU WEB. SU SIGUIENTE NIVEL.</p>
           <h1
-            className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6"
+            className="hero-headline text-4xl sm:text-5xl lg:text-6xl font-black mb-6"
             data-testid="hero-title"
           >
             {t("hero_title")}
@@ -105,12 +105,12 @@ export default function LandingPage() {
             {t("hero_subtitle")}
           </p>
           <p className="mx-auto mb-12 max-w-xl text-sm leading-6 text-zinc-500">
-            Analízala, descubre qué está fallando y decide hasta dónde quieres mejorarla.
+            Introduce la URL de tu web para empezar con un análisis gratuito.
           </p>
 
           {/* INPUT */}
           <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center bg-[#0A0A12] border border-white/10 rounded-xl p-2 gap-2 focus-within:border-[#00E5FF]/40 transition-colors">
+            <div className="hero-url relative flex items-center bg-[#0A0A12] border border-white/10 rounded-xl p-2 gap-2 focus-within:border-[#00E5FF]/40 transition-colors">
               <Search className="w-5 h-5 text-zinc-500 ml-3" />
 
               <Input
@@ -120,6 +120,7 @@ export default function LandingPage() {
                   if (e.key === "Enter") handleAnalyze();
                 }}
                 placeholder="https://tusitio.com"
+                aria-label="URL de tu web"
                 className="flex-1 bg-transparent border-0 text-white placeholder:text-zinc-600 focus-visible:ring-0"
                 data-testid="url-input"
               />
@@ -127,20 +128,11 @@ export default function LandingPage() {
               <button
                 onClick={handleAnalyze}
                 disabled={quickLoading}
-                className="px-6 py-3 rounded-lg bg-gradient-to-r from-[#00E5FF] to-[#9D4CDD] text-black font-bold disabled:opacity-60"
+                className="hero-submit px-6 py-3 rounded-lg bg-gradient-to-r from-[#00E5FF] to-[#9D4CDD] text-black font-bold disabled:opacity-60"
                 data-testid="analyze-btn"
               >
                 {quickLoading ? "Analizando..." : t("analyze_btn")}
               </button>
-            </div>
-
-            <div className="mt-8 grid grid-cols-2 gap-3 text-left sm:grid-cols-4" aria-hidden="true">
-              {["SEO", "RENDIMIENTO", "MÓVIL", "CONVERSIÓN"].map((label, index) => (
-                <div key={label} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.04]">
-                  <div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold tracking-[0.16em] text-zinc-500">{label}</span><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" style={{ animationDelay: `${index * 180}ms` }} /></div>
-                  <div className="h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-violet-300" style={{ width: `${58 + index * 8}%` }} /></div>
-                </div>
-              ))}
             </div>
 
             {error && (
@@ -154,7 +146,7 @@ export default function LandingPage() {
 
             {/* Features under input */}
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={reduced ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
               className="flex flex-wrap items-center justify-center gap-3 mt-8 text-xs text-zinc-500"
@@ -176,6 +168,17 @@ export default function LandingPage() {
 
       <CommercialLadder />
       <CommercialFaq />
+      <section className="final-scene" aria-labelledby="final-title">
+        <div className="final-orbit" aria-hidden="true" />
+        <p className="scene-eyebrow">EL SIGUIENTE PASO EMPIEZA AQUÍ</p>
+        <h2 id="final-title">Empieza por descubrir<br />qué está frenando tu web.</h2>
+        <p>De una URL a una decisión más clara.</p>
+        <div className="final-actions"><button type="button" onClick={() => {
+          const input = document.querySelector('[data-testid="url-input"]');
+          input?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+          input?.focus({ preventScroll: true });
+        }}>ANALIZAR MI WEB</button><a href="#complete-report">VER PLANES</a></div>
+      </section>
 
       {/* RESULTS */}
       <div ref={resultsRef} data-testid="results-section">
@@ -198,8 +201,6 @@ export default function LandingPage() {
         MejoraTuWeb © 2026
       </footer>
 
-      <FloatingCTA />
-      <ChatWidget />
     </div>
   );
 }

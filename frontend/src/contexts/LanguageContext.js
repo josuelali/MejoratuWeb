@@ -2,8 +2,8 @@ import { createContext, useContext, useState } from "react";
 
 const translations = {
   es: {
-    hero_title: "Tu web esta perdiendo trafico y dinero (descubrelo en 10 segundos)",
-    hero_subtitle: "Analiza tu web gratis y descubre los errores que te estan costando clientes y ventas",
+    hero_title: "¿Tu web está perdiendo tráfico y clientes?",
+    hero_subtitle: "Descubre qué la está frenando y hasta dónde podemos llevarla.",
     analyze_btn: "Analizar Web",
     analyzing: "Analizando...",
     url_placeholder: "Introduce la URL de tu sitio web...",
@@ -45,8 +45,8 @@ const translations = {
     report_title: "Informe de Analisis Web",
   },
   en: {
-    hero_title: "Your website is losing traffic and money (find out in 10 seconds)",
-    hero_subtitle: "Analyze your site for free and discover the errors costing you customers and sales",
+    hero_title: "Is your website losing traffic and customers?",
+    hero_subtitle: "Discover what is holding it back and how far we can take it.",
     analyze_btn: "Analyze Website",
     analyzing: "Analyzing...",
     url_placeholder: "Enter your website URL...",

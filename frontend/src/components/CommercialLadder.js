@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import axios from "axios";
-import { ArrowRight, Bot, Check, LockKeyhole, Rocket, Search } from "lucide-react";
+import { ArrowRight, Bot, Check, LockKeyhole, Rocket, Search, X } from "lucide-react";
 import { API } from "../lib/api";
 import { DiagnosticHud, AgentFlow, InterventionScene, ProjectPortfolio } from "./VisualScenes";
 
@@ -31,16 +31,26 @@ export default function CommercialLadder() {
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
   const journeyColor = useTransform(scrollYProgress, [0, .35, .65, 1], ["#67e8f9", "#fcd34d", "#a78bfa", "#67e8f9"]);
   const [leadOpen, setLeadOpen] = useState(false);
-  const [email, setEmail] = useState("");
+  const [lead, setLead] = useState({ first_name: "", last_name: "", phone: "", email: "", privacy_consent: false });
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const requestImplementation = async (event) => {
     event.preventDefault();
-    if (!email.trim()) return;
+    setLeadSubmitting(true);
     setError("");
-    try { await axios.post(`${API}/email/subscribe`, { email: email.trim() }); setSent(true); }
-    catch { setError("No se pudo enviar la solicitud. Inténtalo de nuevo."); }
+    try { await axios.post(`${API}/agent-leads`, lead); setSent(true); }
+    catch (requestError) { setError(requestError?.response?.status === 409 ? "Ya hemos recibido una solicitud con estos datos." : "No se pudo enviar la solicitud. Inténtalo de nuevo."); }
+    finally { setLeadSubmitting(false); }
   };
+  useEffect(() => {
+    if (!leadOpen) return undefined;
+    const onKeyDown = event => { if (event.key === "Escape" && !leadSubmitting) setLeadOpen(false); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKeyDown); };
+  }, [leadOpen, leadSubmitting]);
   const reveal = reduced ? {} : { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, amount: .15 }, transition: { duration: .6 } };
   return <section ref={ref} className="commercial-journey" data-testid="commercial-ladder">
     <motion.div className="journey-rail" aria-hidden="true" style={{ color: reduced ? "#67e8f9" : journeyColor }}><motion.i style={{ scaleY: reduced ? 1 : scrollYProgress }} /></motion.div>
@@ -57,7 +67,7 @@ export default function CommercialLadder() {
             <h3>{title}</h3><p className="tier-price">{price}</p><p className="tier-description">{description}</p>
             <ul>{features.map(feature => <li key={feature}><Check size={16} aria-hidden="true" />{feature}</li>)}</ul>
             {href ? <a href={href} target="_blank" rel="noreferrer" data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></a>
-              : <button type="button" onClick={id === "ai-agent" ? () => setLeadOpen(true) : focusAnalysis} data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></button>}
+              : <button type="button" onClick={id === "ai-agent" ? () => { setSent(false); setError(""); setLeadOpen(true); } : focusAnalysis} data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></button>}
             {note && <p className="tier-note">{note}</p>}
           </motion.article>
           <motion.div {...reveal} className="scene-visual">
@@ -69,7 +79,7 @@ export default function CommercialLadder() {
         {index < 2 && <div className={`scene-transition transition-${accent}`} aria-hidden="true"><div className="transition-path"><i /></div><span>{index === 0 ? "LA CLARIDAD SE CONVIERTE EN ACCIÓN" : "EL SIGUIENTE PASO: CONECTAR OPORTUNIDADES"}</span><ArrowRight size={16}/></div>}
       </div>)}
       <ProjectPortfolio />
-      {leadOpen && <motion.div {...reveal} className="agent-lead" data-testid="agent-lead-form"><div className="mb-4 flex items-center gap-3"><LockKeyhole className="h-5 w-5 text-violet-200" /><h3 className="text-lg font-bold text-white">Solicitar implantación</h3></div><p className="mb-4 text-sm leading-6 text-slate-400">Déjanos tu email y te contactaremos para concretar el caso de uso del agente. No se realiza ningún pago aquí.</p>{sent ? <p className="text-sm text-emerald-300">Solicitud recibida.</p> : <form onSubmit={requestImplementation} className="flex flex-col gap-2 sm:flex-row"><input type="email" required aria-label="Tu email" value={email} onChange={event => setEmail(event.target.value)} placeholder="Tu email" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white outline-none focus:border-violet-300/60" /><button type="submit" className="rounded-xl bg-white px-4 py-3 font-bold text-black transition hover:bg-violet-100">Enviar solicitud</button></form>}{error && <p className="mt-3 text-sm text-red-400">{error}</p>}</motion.div>}
+      {leadOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#02040b]/80 p-4 backdrop-blur-sm" role="presentation" onMouseDown={() => !leadSubmitting && setLeadOpen(false)}><motion.div {...reveal} role="dialog" aria-modal="true" aria-labelledby="agent-modal-title" data-testid="agent-lead-modal" className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-violet-200/20 bg-[#0b1020] p-6 shadow-2xl shadow-violet-950/50 sm:p-8" onMouseDown={event => event.stopPropagation()}><button type="button" aria-label="Cerrar solicitud" data-testid="agent-lead-close" onClick={() => !leadSubmitting && setLeadOpen(false)} className="absolute right-5 top-5 rounded-full p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"><X size={20} aria-hidden="true" /></button><div className="mb-5 flex items-center gap-3 pr-8"><LockKeyhole className="h-5 w-5 text-violet-200" aria-hidden="true" /><h3 id="agent-modal-title" className="text-xl font-bold text-white">Solicitar agente IA 24/7</h3></div><p className="mb-6 text-sm leading-6 text-slate-400">Implantación desde 499 €. Déjanos tus datos para estudiar tu negocio y contactar contigo. Sin pago ahora.</p>{sent ? <p className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm text-emerald-200" role="status">Solicitud recibida. Nos pondremos en contacto contigo.</p> : <form onSubmit={requestImplementation} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm text-slate-300" htmlFor="agent-first-name">Nombre<input id="agent-first-name" name="first_name" required autoFocus value={lead.first_name} onChange={event => setLead({ ...lead, first_name: event.target.value })} placeholder="Tu nombre" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white outline-none focus:border-violet-300/60" /></label><label className="space-y-2 text-sm text-slate-300" htmlFor="agent-last-name">Apellidos<input id="agent-last-name" name="last_name" required value={lead.last_name} onChange={event => setLead({ ...lead, last_name: event.target.value })} placeholder="Tus apellidos" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white outline-none focus:border-violet-300/60" /></label></div><label className="block space-y-2 text-sm text-slate-300" htmlFor="agent-phone">Teléfono / WhatsApp<input id="agent-phone" name="phone" type="tel" required value={lead.phone} onChange={event => setLead({ ...lead, phone: event.target.value })} placeholder="+34 600 000 000" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white outline-none focus:border-violet-300/60" /></label><label className="block space-y-2 text-sm text-slate-300" htmlFor="agent-email">Correo electrónico<input id="agent-email" name="email" type="email" required value={lead.email} onChange={event => setLead({ ...lead, email: event.target.value })} placeholder="tu@empresa.com" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white outline-none focus:border-violet-300/60" /></label><label className="flex items-start gap-3 text-sm leading-6 text-slate-300"><input name="privacy_consent" type="checkbox" required checked={lead.privacy_consent} onChange={event => setLead({ ...lead, privacy_consent: event.target.checked })} className="mt-1 h-4 w-4 accent-violet-400" /> <span>Autorizo que me contacten para responder a esta solicitud y he leído la <a href="/legal/privacy" target="_blank" rel="noreferrer" className="text-violet-200 underline">información de privacidad</a>.</span></label>{error && <p className="text-sm text-red-400" role="alert">{error}</p>}<button type="submit" disabled={leadSubmitting} className="w-full rounded-xl bg-white px-4 py-3 font-bold text-black transition hover:bg-violet-100 disabled:cursor-wait disabled:opacity-60">{leadSubmitting ? "Enviando…" : "Solicitar llamada"}</button></form>}</motion.div></div>}
     </div>
   </section>;
 }

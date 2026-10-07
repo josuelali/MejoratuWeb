@@ -43,8 +43,10 @@ describe("public V1 without legacy authentication", () => {
     expect(container.querySelector('[data-testid="ladder-49-cta"]').href).toBe("https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00");
     expect(container.querySelector('[data-testid="ladder-499-cta"]').tagName).toBe("BUTTON");
     act(() => container.querySelector('[data-testid="ladder-499-cta"]').click());
-    expect(container.querySelector('[data-testid="agent-lead-form"] input[type="email"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="agent-lead-form"] a')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-modal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-modal"] input[name="first_name"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-modal"] input[name="privacy_consent"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-modal"] a[href="/legal/privacy"]')).not.toBeNull();
     expect(container.textContent).toContain("REPRESENTACIÓN DEL SERVICIO");
     expect(container.textContent).toContain("DEMO");
   });

@@ -110,6 +110,14 @@ class EmailSubscribeRequest(BaseModel):
     email: str
 
 
+class AgentLeadRequest(BaseModel):
+    first_name: str
+    last_name: str
+    phone: str
+    email: str
+    privacy_consent: bool
+
+
 class CreateCheckoutRequest(BaseModel):
     origin_url: str
     analysis_id: str
@@ -320,6 +328,8 @@ async def save_document(collection: str, data: dict, required: bool = False):
         )
         return result
     except HTTPException:
+        raise
+    except DuplicateKeyError:
         raise
     except Exception as exc:
         logger.warning("No se pudo guardar en MongoDB/%s: %s", collection, exc)
@@ -999,6 +1009,36 @@ async def email_subscribe(req: EmailSubscribeRequest):
     return {"message": "Suscrito correctamente"}
 
 
+@api_router.post("/agent-leads", status_code=201)
+async def agent_lead(req: AgentLeadRequest, request: Request):
+    enforce_rate_limit(request, "agent-lead")
+    values = {key: value.strip() for key, value in req.model_dump().items() if isinstance(value, str)}
+    if not all(values.values()) or not req.privacy_consent:
+        raise HTTPException(status_code=422, detail="Completa los datos y acepta la privacidad")
+    if len(values["first_name"]) > 80 or len(values["last_name"]) > 120 or len(values["phone"]) > 40 or len(values["email"]) > 254:
+        raise HTTPException(status_code=422, detail="Datos no válidos")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", values["email"]):
+        raise HTTPException(status_code=422, detail="Correo electrónico no válido")
+    dedupe_key = hashlib.sha256(f"{values['email'].lower()}|{values['phone']}".encode()).hexdigest()
+    data = {
+        "first_name": values["first_name"],
+        "last_name": values["last_name"],
+        "phone": values["phone"],
+        "email": values["email"].lower(),
+        "privacy_consent": True,
+        "dedupe_key": dedupe_key,
+        "source": "commercial_ladder",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await save_document("agent_leads", data, required=True)
+    except HTTPException:
+        raise
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="Solicitud ya recibida")
+    return {"message": "Solicitud recibida", "status": "received"}
+
+
 # --- Payments and premium delivery (explicit Stripe Test/Live mode) ---
 def require_payment_dependencies() -> None:
     if not PAYMENTS_ENABLED:
@@ -1265,6 +1305,7 @@ async def initialize_database():
             sparse=True,
         )
         await db.stripe_events.create_index([("event_id", ASCENDING)], unique=True)
+        await db.agent_leads.create_index([("dedupe_key", ASCENDING)], unique=True)
     except Exception as exc:
         global db_ready
         db_ready = False

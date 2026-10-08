@@ -59,5 +59,23 @@ describe("public V1 without legacy authentication", () => {
     expect(container.querySelector('[data-testid="hero-section"]')).not.toBeNull();
     expect(window.location.hostname).not.toBe("auth.emergentagent.com");
   });
+
+  test("traps keyboard focus inside the agent modal and restores the trigger", async () => {
+    act(() => root.render(<App />));
+    const trigger = container.querySelector('[data-testid="ladder-499-cta"]');
+    act(() => trigger.click());
+    const modal = container.querySelector('[data-testid="agent-lead-modal"]');
+    const controls = modal.querySelectorAll('button:not([disabled]), input:not([disabled]), a[href]');
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    last.focus();
+    act(() => last.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true })));
+    expect(document.activeElement).toBe(first);
+    act(() => first.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true })));
+    expect(document.activeElement).toBe(last);
+    act(() => container.querySelector('[data-testid="agent-lead-close"]').click());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(document.activeElement).toBe(trigger);
+  });
 });
 

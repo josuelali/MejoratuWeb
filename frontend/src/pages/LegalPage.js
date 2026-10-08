@@ -4,6 +4,7 @@ import { ArrowLeft, Rocket } from "lucide-react";
 const legalContent = {
   privacidad: {
     title: "Politica de Privacidad",
+    version: "privacy-v1-2026-10-08",
     content: `Ultima actualizacion: Abril 2026
 
 1. RESPONSABLE DEL TRATAMIENTO
@@ -158,6 +159,7 @@ export default function LegalPage() {
         >
           {page.title}
         </h1>
+        {page.version && <p className="mb-6 text-xs text-zinc-500" data-testid="privacy-version">Versión: {page.version}</p>}
 
         <div className="text-sm text-zinc-400 leading-relaxed whitespace-pre-line">
           {page.content}
@@ -166,3 +168,7 @@ export default function LegalPage() {
     </div>
   );
 }
+
+
+
+

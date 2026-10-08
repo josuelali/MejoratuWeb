@@ -46,7 +46,7 @@ describe("public V1 without legacy authentication", () => {
     expect(container.querySelector('[data-testid="agent-lead-modal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="agent-lead-modal"] input[name="first_name"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="agent-lead-modal"] input[name="privacy_consent"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="agent-lead-modal"] a[href="/legal/privacy"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-lead-modal"] a[href="/legal/privacidad"]')).not.toBeNull();
     expect(container.textContent).toContain("REPRESENTACIÓN DEL SERVICIO");
     expect(container.textContent).toContain("DEMO");
   });
@@ -60,3 +60,4 @@ describe("public V1 without legacy authentication", () => {
     expect(window.location.hostname).not.toBe("auth.emergentagent.com");
   });
 });
+

@@ -4,7 +4,7 @@ const translations = {
   es: {
     hero_title: "Tu web esta perdiendo trafico y dinero (descubrelo en 10 segundos)",
     hero_subtitle: "Analiza tu web gratis y descubre los errores que te estan costando clientes y ventas",
-    analyze_btn: "Analizar Web",
+    analyze_btn: "Analizar web gratis",
     analyzing: "Analizando...",
     url_placeholder: "Introduce la URL de tu sitio web...",
     score: "Puntuacion General",
@@ -41,13 +41,13 @@ const translations = {
     trust_line: "Analisis potenciado por IA avanzada",
     quick_scan: "Escaneo Rapido",
     ai_analyzing: "Analisis IA en progreso... Los resultados completos apareceran en segundos",
-    export_pdf: "Exportar PDF",
+    export_pdf: "Descargar informe completo (PDF)",
     report_title: "Informe de Analisis Web",
   },
   en: {
     hero_title: "Your website is losing traffic and money (find out in 10 seconds)",
     hero_subtitle: "Analyze your site for free and discover the errors costing you customers and sales",
-    analyze_btn: "Analyze Website",
+    analyze_btn: "Analyze website free",
     analyzing: "Analyzing...",
     url_placeholder: "Enter your website URL...",
     score: "Overall Score",
@@ -84,7 +84,7 @@ const translations = {
     trust_line: "Analysis powered by advanced AI",
     quick_scan: "Quick Scan",
     ai_analyzing: "AI analysis in progress... Full results will appear in seconds",
-    export_pdf: "Export PDF",
+    export_pdf: "Download full report (PDF)",
     report_title: "Web Analysis Report",
   },
 };

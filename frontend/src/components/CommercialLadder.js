@@ -9,6 +9,7 @@ if (typeof window !== "undefined" && !window.IntersectionObserver) {
   window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
 }
 const PREMIUM_URL = "https://buy.stripe.com/28E7sMbKhelIeUN8Tq63K00";
+const COMPLETE_REPORT_URL = "https://buy.stripe.com/28EbJ27u1dhE8wp5He63K01";
 const focusAnalysis = () => {
   const input = document.querySelector('[data-testid="url-input"]');
   input?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
@@ -78,7 +79,7 @@ export default function CommercialLadder() {
             <div className="tier-heading"><span className="scene-eyebrow">{step} · {world}</span><Icon size={25} aria-hidden="true" /></div>
             <h3>{title}</h3><p className="tier-price">{price}</p><p className="tier-description">{description}</p>
             <ul>{features.map(feature => <li key={feature}><Check size={16} aria-hidden="true" />{feature}</li>)}</ul>
-            {href ? <a href={href} target="_blank" rel="noreferrer" data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></a>
+            {href || id === "complete-report" ? <a href={href || COMPLETE_REPORT_URL} target="_blank" rel="noreferrer" data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></a>
               : <button type="button" onClick={id === "ai-agent" ? event => { triggerRef.current = event.currentTarget; setSent(false); setError(""); setLeadOpen(true); } : focusAnalysis} data-testid={testId} className="tier-cta">{action}<ArrowRight size={17} aria-hidden="true" /></button>}
             {note && <p className="tier-note">{note}</p>}
           </motion.article>

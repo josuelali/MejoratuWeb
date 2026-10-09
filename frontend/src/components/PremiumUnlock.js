@@ -68,7 +68,7 @@ export default function PremiumUnlock({ analysisId, url }) {
           data-testid="premium-btn"
         >
           <Crown className="w-5 h-5" />
-          {loading ? "Preparando pago seguro..." : "Desbloquear informe completo por 6,99€"}
+          {loading ? "Preparando pago seguro..." : "Conseguir informe completo — 6,99 €"}
           <ArrowRight className="w-5 h-5" />
         </button>
         {error && <p className="text-sm text-red-400 mt-3">{error}</p>}

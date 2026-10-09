@@ -102,6 +102,9 @@ else:
 # --- Models ---
 class AnalyzeRequest(BaseModel):
     url: str
+    # Reutiliza el escaneo gratuito ya ejecutado por el frontend.  Se mantiene
+    # opcional para conservar compatibilidad con clientes anteriores.
+    quick_scan: Optional[dict] = None
 
 
 class EmailSubscribeRequest(BaseModel):
@@ -881,7 +884,12 @@ async def analyze_url(req: AnalyzeRequest, request: Request):
     url = await validate_public_url(req.url)
 
     try:
-        quick = await quick_scan(req, request)
+        # El recorrido web ejecuta primero /quick-scan para mostrar el
+        # diagnóstico gratuito. Reutilizarlo evita una segunda comprobación
+        # y garantiza que el análisis premium parte del mismo resultado.
+        quick = req.quick_scan or await quick_scan(
+            AnalyzeRequest(url=req.url), request
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -1177,8 +1185,8 @@ async def payment_status(session_id: str, request: Request):
     require_payment_dependencies()
     if not await mongo_is_ready():
         raise HTTPException(status_code=503, detail="Persistencia no disponible")
-    if not re.fullmatch(r"cs_test_[A-Za-z0-9_]+", session_id):
-        raise HTTPException(status_code=400, detail="Sesión Stripe Test no válida")
+    if not re.fullmatch(r"cs_[A-Za-z0-9_]+", session_id):
+        raise HTTPException(status_code=400, detail="Sesión Stripe no válida")
     analysis = await db.analyses.find_one({"stripe_session_id": session_id})
     if not analysis:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")

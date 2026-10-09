@@ -186,7 +186,7 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#9D4CDD] to-[#00E5FF] text-black font-bold text-lg hover:scale-105 active:scale-95 transition-all duration-200 shadow-[0_0_30px_rgba(157,76,221,0.4)] hover:shadow-[0_0_40px_rgba(157,76,221,0.6)] animate-pulse-glow"
             data-testid="unlock-btn"
           >
-            {checkoutLoading ? "Preparando pago seguro..." : analysisId ? "Desbloquear informe completo por 6,99€" : "Preparando informe..."}
+            {checkoutLoading ? "Preparando pago seguro..." : analysisId ? "Conseguir informe completo — 6,99 €" : "Preparando informe..."}
             <ArrowRight className="w-5 h-5" />
           </button>
           {checkoutError && <p className="text-sm text-red-400 mt-3">{checkoutError}</p>}

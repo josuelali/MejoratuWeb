@@ -55,6 +55,7 @@ export default function LandingPage() {
       setAiLoading(true);
       const analysisRes = await axios.post(`${API}/analyze`, {
         url: normalizedUrl,
+        quick_scan: quickRes.data,
       });
       setAnalysis(analysisRes.data);
 

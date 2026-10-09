@@ -83,16 +83,16 @@ export function InterventionScene() {
 }
 
 const projects = [
-  { name: "SISTEMA MAESTRO IA", type: "SaaS / Inteligencia Artificial", style: "saas", title: "Contexto. Asistentes. Continuidad.", tags: ["Contexto de negocio", "Asistentes", "Historial"] },
-  { name: "VENDECONIA", type: "E-commerce / Comercio digital", style: "commerce", title: "Del producto al escaparate digital.", tags: ["Catálogo", "Producto", "Comercio digital"] },
-  { name: "GADGETSMANIA", type: "Contenido / Afiliación", style: "editorial", title: "Tecnología que merece descubrirse.", tags: ["Contenido", "Tecnología", "Afiliación"] },
+  { name: "SISTEMA MAESTRO IA", type: "SaaS / Inteligencia Artificial", style: "saas", title: "Contexto. Asistentes. Continuidad.", tags: ["Contexto de negocio", "Asistentes", "Historial"], href: "https://sistemamaestroia.com" },
+  { name: "VENDECONIA", type: "E-commerce / Comercio digital", style: "commerce", title: "Del producto al escaparate digital.", tags: ["Catálogo", "Producto", "Comercio digital"], href: "https://vendeconia.org" },
+  { name: "GADGETSMANIA", type: "Contenido / Afiliación", style: "editorial", title: "Tecnología que merece descubrirse.", tags: ["Contenido", "Tecnología", "Afiliación"], href: "https://gadgetsmania.org" },
 ];
 export function ProjectPortfolio() {
   return <section id="projects" className="project-portfolio" aria-labelledby="projects-title">
     <div className="portfolio-heading"><p className="scene-eyebrow">PROYECTOS DESARROLLADOS</p><h3 id="projects-title">Ideas convertidas en productos digitales.</h3><p>Proyectos desarrollados dentro del ecosistema. No son clientes.</p></div>
-    <div className="project-grid">{projects.map(project=><article className={`project-card ${project.style}`} key={project.name}>
+    <div className="project-grid">{projects.map(project=><a className={`project-card ${project.style}`} key={project.name} href={project.href} target="_blank" rel="noreferrer" aria-label={`Visitar ${project.name}`}>
       <div className="project-mockup" aria-hidden="true"><div className="browser-chrome"><i /><i /><i /><span>CONCEPTO DE INTERFAZ</span></div><div className="mockup-workspace"><div className="mockup-sidebar"><span /><span /><span /><span /></div><div className="mockup-main"><div className="mockup-title">{project.title}</div><div className="mockup-tiles">{[0,1,2].map(i=><div key={i}><span className="mockup-object" /><i /><i /></div>)}</div><div className="mockup-composer"><span /><ArrowRight size={14}/></div></div></div></div>
-      <div className="project-caption"><span className="scene-eyebrow">{project.type}</span><h4>{project.name}</h4><div className="project-tags">{project.tags.map(tag=><span key={tag}>{tag}</span>)}</div><small>Mockup original de interfaz · no es una captura real</small></div>
-    </article>)}</div>
+      <div className="project-caption"><span className="scene-eyebrow">{project.type}</span><h4>{project.name}</h4><div className="project-tags">{project.tags.map(tag=><span key={tag}>{tag}</span>)}</div><small>Mockup original de interfaz · no es una captura real</small><strong className="project-link">Visitar proyecto <ArrowRight size={14} aria-hidden="true" /></strong></div>
+    </a>)}</div>
   </section>;
 }

@@ -24,42 +24,77 @@ export default function AnalysisResults({ data }) {
     if (!isPremium) return;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     let y = 20;
     const ensurePage = (needed = 20) => {
-      if (y + needed > 280) { doc.addPage(); y = 20; }
+      if (y + needed > pageHeight - 18) { doc.addPage(); y = 20; }
+    };
+    const heading = (text, size = 14) => {
+      ensurePage(18);
+      doc.setFontSize(size);
+      doc.setTextColor(20, 20, 20);
+      doc.text(text, 20, y);
+      y += size === 16 ? 9 : 7;
     };
     const paragraph = (text, indent = 20) => {
       const lines = doc.splitTextToSize(String(text || ""), pageWidth - indent - 20);
-      ensurePage(lines.length * 5 + 4);
+      ensurePage(lines.length * 5 + 6);
       doc.text(lines, indent, y);
       y += lines.length * 5 + 4;
     };
+    const list = (items, formatter = (item) => item) => {
+      (items || []).forEach((item) => paragraph(`• ${formatter(item)}`, 24));
+      if (!(items || []).length) paragraph("No se han registrado elementos en esta categoría.");
+    };
 
+    // Portada y resumen ejecutivo.
     doc.setFontSize(22);
     doc.setTextColor(0, 160, 180);
     doc.text("MejoraTuWeb", 20, y);
     y += 10;
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    paragraph(`Informe premium · URL: ${data.url}`);
-    paragraph(`Fecha: ${new Date().toLocaleDateString("es-ES")}`);
-    doc.setFontSize(16);
-    doc.setTextColor(20, 20, 20);
-    paragraph(`Puntuación: ${result.score}/100`);
-    doc.setFontSize(10);
-    paragraph(result.summary);
-    doc.setFontSize(14);
-    paragraph("Errores detectados");
-    doc.setFontSize(9);
-    (result.errors || []).forEach((error) => paragraph(`• ${error.title}: ${error.description}`, 24));
-    doc.setFontSize(14);
-    paragraph("Oportunidades");
-    doc.setFontSize(9);
-    (result.opportunities || []).forEach((opportunity) => paragraph(`• ${opportunity.title}: ${opportunity.description}`, 24));
-    doc.setFontSize(14);
-    paragraph("Recomendaciones");
-    doc.setFontSize(9);
-    (result.recommendations || []).forEach((recommendation) => paragraph(`• ${recommendation}`, 24));
+    paragraph(`URL analizada: ${data.url}`);
+    paragraph(`Fecha del informe: ${new Date().toLocaleDateString("es-ES")}`);
+    heading("Resumen ejecutivo", 16);
+    paragraph(`Puntuación general: ${result.score ?? "No disponible"}/100`);
+    paragraph(result.summary || "No se ha generado un resumen para este análisis.");
+
+    heading("Evaluación SEO básica");
+    paragraph(`Puntuación SEO disponible: ${result.seo_score ?? "No disponible"}/100.`);
+    paragraph("El detalle se limita a las comprobaciones y recomendaciones realmente incluidas en el análisis.");
+
+    heading("Rendimiento y velocidad");
+    paragraph(result.performance_score != null
+      ? `Puntuación de rendimiento disponible: ${result.performance_score}/100.`
+      : "No se dispone de una medición de rendimiento ejecutada.");
+
+    heading("Experiencia móvil y usabilidad");
+    paragraph(result.ux_score != null
+      ? `Puntuación de experiencia de usuario disponible: ${result.ux_score}/100.`
+      : "No se dispone de una comprobación móvil específica.");
+
+    heading("Seguridad y configuración técnica");
+    paragraph(result.security_score != null
+      ? `Puntuación de seguridad disponible: ${result.security_score}/100.`
+      : "No se dispone de una auditoría técnica avanzada.");
+
+    heading("Problemas detectados");
+    list(result.errors, (error) => `${error.title || "Problema"} — ${error.severity || "prioridad no indicada"}: ${error.description || "Sin descripción adicional."}`);
+
+    heading("Oportunidades de mejora");
+    list(result.opportunities, (opportunity) => `${opportunity.title || "Oportunidad"}: ${opportunity.description || "Sin descripción adicional."}`);
+
+    heading("Plan de acción priorizado", 16);
+    paragraph("Primero: corregir los problemas marcados como críticos o de alto impacto.");
+    paragraph("Después: aplicar las recomendaciones SEO, de rendimiento, seguridad y usabilidad.");
+    paragraph("Más adelante: revisar las oportunidades restantes y medir su efecto con herramientas específicas.");
+
+    heading("Recomendaciones");
+    list(result.recommendations);
+
+    heading("Conclusión general", 16);
+    paragraph("Este informe resume los datos disponibles en el análisis realizado. No sustituye una auditoría técnica avanzada ni garantiza posiciones, tráfico o ventas.");
 
     const filename = data.url.replace(/https?:\/\//, "").replace(/[^a-z0-9]/gi, "-");
     doc.save(`mejoratuweb-${filename}.pdf`);

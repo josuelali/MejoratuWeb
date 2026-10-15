@@ -50,6 +50,13 @@ export default function LandingPage() {
       setQuickScan(quickRes.data);
       setQuickLoading(false);
 
+      // A fallback quick scan is not a completed inspection. Do not show a
+      // score, make loss claims, or continue into the paid/AI analysis path.
+      if (quickRes.data?.fallback) {
+        setError("La inspección no pudo completarse. No se ha obtenido una puntuación fiable; inténtalo de nuevo más tarde.");
+        return;
+      }
+
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
       }, 200);
@@ -182,16 +189,25 @@ export default function LandingPage() {
 
       {/* RESULTS */}
       <div ref={resultsRef} data-testid="results-section">
-        {quickScan && (
+        {quickScan && !quickScan.fallback && (
           <QuickScanCard
             data={quickScan}
             aiData={analysis}
             aiLoading={aiLoading}
-            analysisId={analysis?.analysis_id}
+            analysisId={analysis?.fallback ? null : analysis?.analysis_id}
           />
         )}
 
-        {analysis && <AnalysisResults data={analysis} />}
+        {quickScan?.fallback && (
+          <section className="mx-auto max-w-2xl px-4 py-12 text-center" data-testid="incomplete-scan-message" aria-live="polite">
+            <h2 className="text-xl font-semibold text-white">Inspección incompleta</h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              No hemos podido verificar el contenido de la web. No mostramos una puntuación ni conclusiones hasta completar la inspección.
+            </p>
+          </section>
+        )}
+
+        {analysis && !analysis.fallback && <AnalysisResults data={analysis} />}
       </div>
 
       <footer

@@ -300,13 +300,29 @@ async def fetch_html(url: str, timeout: float = HTML_FETCH_TIMEOUT_SECONDS):
                     continue
 
                 content = bytearray()
-                async for chunk in streamed.aiter_bytes():
-                    content.extend(chunk)
-                    if len(content) > MAX_HTML_BYTES:
-                        raise HTTPException(status_code=400, detail="La respuesta web es demasiado grande")
+                try:
+                    async for chunk in streamed.aiter_bytes():
+                        content.extend(chunk)
+                        if len(content) > MAX_HTML_BYTES:
+                            raise HTTPException(status_code=400, detail="La respuesta web es demasiado grande")
+                except httpx.DecodingError as exc:
+                    # A malformed Content-Encoding must not become a fabricated
+                    # score. Surface an explicit upstream decoding failure so
+                    # callers can distinguish it from a real scan.
+                    raise HTTPException(
+                        status_code=502,
+                        detail="No se pudo decodificar la respuesta HTML remota",
+                    ) from exc
+                # aiter_bytes() returns decoded bytes. Do not preserve
+                # representation headers that would make httpx decode the
+                # already-decoded body a second time when response.text is read.
+                decoded_headers = httpx.Headers(streamed.headers)
+                decoded_headers.pop("content-encoding", None)
+                decoded_headers.pop("content-length", None)
+                decoded_headers["content-length"] = str(len(content))
                 response = httpx.Response(
                     streamed.status_code,
-                    headers=streamed.headers,
+                    headers=decoded_headers,
                     content=bytes(content),
                     request=streamed.request,
                 )
@@ -884,12 +900,16 @@ async def persist_analysis(url: str, full_result: dict, fallback_reason: Optiona
     if fallback_reason:
         document["fallback_reason"] = fallback_reason
     await save_document("analyses", document, required=True)
-    return {
+    response = {
         "analysis_id": analysis_id,
         "url": url,
         "result": build_free_preview(full_result),
         "is_premium": False,
     }
+    if fallback_reason:
+        response["fallback"] = True
+        response["fallback_reason"] = fallback_reason
+    return response
 
 
 @api_router.post("/analyze")

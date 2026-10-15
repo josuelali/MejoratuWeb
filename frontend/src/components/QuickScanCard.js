@@ -11,6 +11,15 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
   const [checkoutError, setCheckoutError] = useState("");
   const analyzedDomain = getAnalyzedDomain(data?.url || "");
 
+  if (data?.fallback) {
+    return (
+      <section className="mx-auto max-w-2xl px-4 py-12 text-center" data-testid="incomplete-quick-scan" aria-live="polite">
+        <h2 className="text-xl font-semibold text-white">Inspección incompleta</h2>
+        <p className="mt-3 text-sm text-zinc-400">No se ha obtenido una puntuación fiable y no mostraremos conclusiones ni ofertas hasta completar la inspección.</p>
+      </section>
+    );
+  }
+
   const handleCheckout = async () => {
     if (!analysisId || checkoutLoading) return;
     setCheckoutLoading(true);
@@ -54,7 +63,6 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
   // Error count from AI data
   const criticalErrors = aiData?.result?.critical_error_count || 0;
   const totalErrors = aiData?.result?.error_count || 0;
-  const moneyLost = aiData?.result?.money_lost_monthly || 0;
 
   return (
     <motion.section
@@ -136,7 +144,7 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
         >
           <AlertTriangle className="w-8 h-8 text-[#FF3B30] mx-auto mb-3" />
           <p className="text-base text-white font-medium mb-2">
-            Se han detectado multiples errores que estan afectando tu posicionamiento y pueden estar haciendo que pierdas trafico y dinero.
+            Hemos completado una primera revisión técnica. Consulta los hallazgos disponibles y valida cada recomendación antes de tomar decisiones.
           </p>
 
           {aiLoading && (
@@ -146,22 +154,23 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
             </div>
           )}
 
-          {aiData && totalErrors > 0 && (
+          {aiData?.fallback && (
+            <p className="mt-3 text-sm text-zinc-400" data-testid="incomplete-analysis-message">
+              La ampliación automática no está disponible; mostramos únicamente las comprobaciones verificadas.
+            </p>
+          )}
+
+          {aiData && !aiData.fallback && totalErrors > 0 && (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mt-3 space-y-2">
               <p className="text-lg font-bold text-[#FF3B30]" data-testid="error-counter">
-                Se han detectado {criticalErrors > 0 ? `${criticalErrors} errores criticos` : `${totalErrors} errores`}
+                Comprobaciones con hallazgos: {criticalErrors > 0 ? `${criticalErrors} prioritarios` : `${totalErrors}`}
               </p>
-              {moneyLost > 0 && (
-                <p className="text-sm text-[#FF3B30]/80">
-                  Estas perdiendo aproximadamente <span className="font-bold text-[#FF3B30]">{moneyLost.toLocaleString()}€/mes</span>
-                </p>
-              )}
             </motion.div>
           )}
         </motion.div>
 
         {/* PREMIUM FEATURES + CTA */}
-        <motion.div
+        {!aiData?.fallback && <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
@@ -196,7 +205,7 @@ export default function QuickScanCard({ data, aiData, aiLoading, analysisId }) {
             <ArrowRight className="w-5 h-5" />
           </button>
           {checkoutError && <p className="text-sm text-red-400 mt-3">{checkoutError}</p>}
-        </motion.div>
+        </motion.div>}
       </div>
     </motion.section>
   );

@@ -116,9 +116,12 @@ class AgentLeadRequest(BaseModel):
     phone: str
     email: str
     privacy_consent: bool
+    ai_call_consent: bool = False
 
 
 PRIVACY_NOTICE_VERSION = "privacy-v1-2026-10-08"
+AI_CALL_CONSENT_VERSION = "ai-call-v1-2026-10-15"
+AI_CALL_CONSENT_TEXT = "Solicito una demo telefónica y autorizo a MejoraTuWeb a llamarme mediante Marcela, su asistente de inteligencia artificial, para atender esta solicitud. Esta autorización no implica ninguna compra."
 PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9 .()\-]{6,38}$")
 NAME_PATTERN = re.compile(r"^[\wÀ-ÿ][\wÀ-ÿ .'-]*$", re.UNICODE)
 
@@ -1061,7 +1064,12 @@ async def agent_lead(req: AgentLeadRequest, request: Request):
         "dedupe_key": dedupe_key,
         "source": "commercial_ladder",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "ai_call_consent": bool(req.ai_call_consent),
     }
+    if req.ai_call_consent:
+        data["ai_call_consent_text"] = AI_CALL_CONSENT_TEXT
+        data["ai_call_consent_version"] = AI_CALL_CONSENT_VERSION
+        data["ai_call_consent_at"] = datetime.now(timezone.utc).isoformat()
     try:
         await save_document("agent_leads", data, required=True)
     except HTTPException:

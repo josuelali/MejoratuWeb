@@ -1038,6 +1038,7 @@ async def email_subscribe(req: EmailSubscribeRequest):
 
 
 LEAD_NOTIFY_URL = os.environ.get("LEAD_NOTIFY_URL", "https://formsubmit.co/ajax/josuecabellorosa83@gmail.com")
+LEAD_NOTIFY_ORIGIN = os.environ.get("LEAD_NOTIFY_ORIGIN", "https://mejoratuweb.onrender.com")
 
 
 async def notify_new_lead(data: dict) -> None:
@@ -1056,7 +1057,7 @@ async def notify_new_lead(data: dict) -> None:
     }
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(LEAD_NOTIFY_URL, json=payload, headers={"Accept": "application/json"})
+            resp = await client.post(LEAD_NOTIFY_URL, json=payload, headers={"Accept": "application/json", "Origin": LEAD_NOTIFY_ORIGIN, "Referer": LEAD_NOTIFY_ORIGIN + "/"})
         if resp.status_code >= 400:
             logger.warning("Aviso de lead fallido: HTTP %s", resp.status_code)
     except Exception as exc:

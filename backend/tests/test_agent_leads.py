@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from mongomock_motor import AsyncMongoMockClient
 
 os.environ.setdefault("MONGO_URL", "")
+os.environ.setdefault("LEAD_NOTIFY_DISABLED", "1")
 import server
 
 

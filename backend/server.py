@@ -1037,6 +1037,32 @@ async def email_subscribe(req: EmailSubscribeRequest):
     return {"message": "Suscrito correctamente"}
 
 
+LEAD_NOTIFY_URL = os.environ.get("LEAD_NOTIFY_URL", "https://formsubmit.co/ajax/josuecabellorosa83@gmail.com")
+
+
+async def notify_new_lead(data: dict) -> None:
+    if os.environ.get("LEAD_NOTIFY_DISABLED") == "1" or not LEAD_NOTIFY_URL:
+        return
+    payload = {
+        "_subject": "Nuevo contacto MejoraTuWeb",
+        "nombre": data.get("first_name"),
+        "apellidos": data.get("last_name"),
+        "email": data.get("email"),
+        "telefono": data.get("phone"),
+        "origen": data.get("source"),
+        "fecha": data.get("created_at"),
+        "_template": "table",
+        "_captcha": "false",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(LEAD_NOTIFY_URL, json=payload, headers={"Accept": "application/json"})
+        if resp.status_code >= 400:
+            logger.warning("Aviso de lead fallido: HTTP %s", resp.status_code)
+    except Exception as exc:
+        logger.warning("No se pudo enviar aviso de lead: %s", exc)
+
+
 @api_router.post("/agent-leads", status_code=201)
 async def agent_lead(req: AgentLeadRequest, request: Request):
     enforce_rate_limit(request, "agent-lead")
@@ -1076,6 +1102,7 @@ async def agent_lead(req: AgentLeadRequest, request: Request):
         raise
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="Solicitud ya recibida")
+    await notify_new_lead(data)
     return {"message": "Solicitud recibida", "status": "received"}
 
 
